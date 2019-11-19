@@ -1,3 +1,0 @@
-"0","hexPoly2 <- hexPoly %>% st_set_crs(3005)
-"
-"2","st_crs<- : replacing crs does not reproject data; use st_transform for that"

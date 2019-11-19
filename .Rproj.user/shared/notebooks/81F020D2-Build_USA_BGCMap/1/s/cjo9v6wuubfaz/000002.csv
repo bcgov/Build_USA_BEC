@@ -1,8 +1,0 @@
-"0","pointDat$Zone <- predict(BGCmodel, newdata = pointDat[,-c(1:5)])
-pointDat$Zone <- predict(BGCmodel, newdata = pointDat[,-c(1:5)])
-testpnts <- pointDat[,c(""ID1"",""Zone"")]
-#testpnts$ID1 <- as.character(testpnts$ID1)
-toc()
-"
-"1","81.72 sec elapsed
-"
