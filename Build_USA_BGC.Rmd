@@ -1,0 +1,233 @@
+---
+title: "BGC_Climate_Summaries"
+author: "William H MacKenzie"
+date: "17/10/2019"
+output: html_document
+---
+# R codes here are written to calculate climate summaries by BGC or Zone
+1. Data used is generated from Climate BC or ClimateNA.
+The Build Climate Grid script is generally used as a large dataset of climate data that can be subsampled
+
+
+# STEP 1: Prepare dataset for analysis----clear workspace
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+require(tidyverse)
+require(data.table)
+require(sf)
+library(dplyr)
+library(rgdal)
+library(sp)
+library(raster)
+library(rgeos)
+library(maptools)
+library(magrittr)
+library(tibble)
+library(tidyr)
+library(sf)
+library(tcltk)
+library(foreach)
+library(httr)
+library(jsonlite)
+library(randomForest)
+library(data.table)
+require(survey)
+require(fasterize)
+require(tibble)
+require(maptools)
+require(tictoc)
+```
+
+#Choose files = Normal Period ClimateWNA output with BGC
+
+```{r input data, echo=FALSE}
+CRS.albers <- CRS ("+proj=aea +lat_1=50 +lat_2=58.5 +lat_0=45 +lon_0=-126 +x_0=1000000 +y_0=0 +datum=NAD83 +units=m +no_defs")
+CRS.NAD83 <- CRS("+init=epsg:4269")
+
+a <-file.choose() #points file with normal period climate data
+BGC <-file.choose()#spatial file of BGCs either 
+fname <-basename(a)
+mydata <- fread(a) #(read in CSV)
+mydata$lat <- mydata$Latitude
+mydata$long <- mydata$Longitude
+#mydata2 <- mydata[mydata$State == "BC",] #limit locations to BC
+mydata_spatial <-  st_as_sf (mydata, coords = c("Longitude", "Latitude"), crs = CRS.NAD83) %>% st_transform(CRS.albers)
+
+BGC_spatial <-  read_sf (BGC) %>% st_set_crs (CRS.albers)
+
+mydata3 <- st_join(mydata_spatial, BGC_spatial) %>% st_transform(CRS.NAD83)### add BGC variables to climate data
+mydata3 <- rename(mydata3, BGC = BGC.x)
+mydata4 <- as.data.frame(mydata3) %>% drop_na("BGC")
+mydata4 <- mydata4 %>% dplyr::select("ID1",  "BGC", "lat", "long", "Elevation", everything())#"State",
+mydata4 <- mydata4[!(mydata4$MAT == -9999.0),] # removes [points that are outside of climateBC model]
+write.csv(mydata4, a, row.names = FALSE) ##replaces the orginal file
+save(mydata4,file=paste0("./outputs/",fname,".Rdata",sep="")) # save as an RDA for future applications
+
+
+```
+
+ ## Summarize normal period climate variables by BGC for a number of points
+
+```{r summarize by BGC, echo=FALSE}
+#read in an existing climate dataset produced from chunk above of normal data
+BGC_climate <-fread(file.choose())
+var.remove <- c("ID1","lat", "long", "Elevation", "geometry" )
+
+mydata5 <- dplyr::select (BGC_climate,-var.remove) # Drop Lat, Long, Elevation
+#mydata2[-1] <- lapply(mydata2[-1], as.numeric)
+
+#var.list <- c("BGC","MAT", "Tave_sm", "MAP", "MSP", "PAS", "CMD", "TD" ) # for BGC subzone designation
+var.list <- c("CMD", "DD5") # for SI50 calculations
+#mydata3 <- select (mydata2, var.list) 
+
+mydata6 <- mydata5 %>% dplyr:: select("BGC",var.list, starts_with("DD5"), starts_with("DD18"), starts_with("Tmax")) %>% drop_na()
+pts_BGC <- mydata4 %>% 
+  group_by(BGC) %>% summarize (n = n() , na.rm = TRUE)
+pts_BGC
+
+### summarize by select list of variables
+BGC_climate <- mydata4 %>% 
+  group_by(BGC) %>% summarize_at(vars(var.list) , funs(mean, sd),na.rm = TRUE)
+
+###summarize by all variables in a reduced variable data set
+ BGC_climate <- mydata6 %>% 
+   group_by(BGC) %>%
+   #summarize_all(list (~mean(.), ~min(.), ~max(.)), na.rm = TRUE)
+summarize_all(list (~mean(.), na.rm = TRUE))
+BGC.list <- as.list(mydata6$BGC)
+BGC.count <- mydata6 [,lapply(length), by = BGC]
+write.csv (by_BGC, paste0 ("./outputs/BGC_ Climate_Summary_", fname, ".csv"), row.names = FALSE)
+```
+
+
+##Plot variables by BGC
+
+```{r plots of variables}
+
+```
+
+
+
+
+
+
+# Climate summaries for BGC climates project
+Inputs are a random number of points per BGC with all variables for annual time series 1901-latest
+
+
+# STEP 1: Prepare dataset for analysis----
+# clear workspace
+
+```{r Climate Summary for Annual Data}
+
+#Choose file = from ClimateWNA output -- all variables time series 1901-latest
+a=file.choose()
+setwd(gsub(basename(a),"",a))
+
+# Read dataset:
+if(grepl(".csv", a)==TRUE){mydata=read.csv(a,stringsAsFactors=FALSE,na.strings=".") # file = .csv
+} else if(grepl(".zip",a)==TRUE){mydata=read.csv(unzip(a),stringsAsFactors=FALSE,na.strings=".") # .zip csv
+} else if(grepl(".RData",a)|grepl(".Rda",a)==TRUE){load(a)} # .RData
+fname= basename(a)
+
+save(mydata,file=paste("./inputs/",fname,".Rdata",sep="")) # save as an RDA for future applications
+
+# Name project and set working directory
+#fname="BGC99_Climate_Summaries"
+
+
+mydata=mydata[,-c(4:6)] # Drop Lat, Long, Elevation
+
+memory.size()   # take a look at how much memory R is using
+gc()   
+
+X=as.data.frame (mydata)
+
+
+# STEP 2: Choose Periods to run analysis on----
+# Time Period
+# 1) 1901-1960
+# 2) 1901-1990
+# 3) 1901-2015
+# 4) 1931-1960
+# 5) 1945-1976
+# 6) 1961-1990
+# 7) 1971-2000
+# 8) 1977-1998
+# 9) 1991-2015
+
+time1=select.list(c(paste(min(X$Year),"1960",sep="-"),paste(min(X$Year),"1990",sep="-"),paste(min(X$Year),max(X$Year),sep="-"),
+                   "1931-1960", "1945-1976","1961-1990","1971-2000","1977-1998",paste("1991",max(X$Year),sep="-")),preselect = "1961-1990", multiple = TRUE,
+                  title = "Choose Time Periods",graphics = TRUE)
+
+timePeriod=matrix(unlist(strsplit(time1,"-")),length(time1),2,byrow=TRUE)
+
+# STEP 3: Calculate mean, sd,max,min and extreme values
+library(plyr)
+library(foreach)
+library(doParallel)
+
+registerDoParallel(detectCores())
+
+
+{ #START:
+  temp=data.frame(matrix(nrow=0,ncol=ncol(X)),stringsAsFactors=FALSE)
+  
+  for (i in 1:length(time1)){
+
+    # Reset dataset
+    X=mydata
+
+    # Subset Time Period Chosen:
+    X=subset(X,Year>=as.numeric(timePeriod[i,1]) & Year<=as.numeric(timePeriod[i,2]))
+
+    
+    # Calculate by BEC units and points
+    ind=which(colnames(X)=="Tmax01")
+    X.mean=ddply(X,.(ID2,ID1),.parallel=TRUE,function(x) apply(x[,4:ncol(x)],2,mean))
+    X.sd=ddply(X,.(ID2,ID1),.parallel=TRUE,function(x) apply(x[,4:ncol(x)],2,sd))
+    X.min=ddply(X,.(ID2,ID1),.parallel=TRUE,function(x) apply(x[,4:ncol(x)],2,min))
+    X.max=ddply(X,.(ID2,ID1),.parallel=TRUE,function(x) apply(x[,4:ncol(x)],2,max))
+    X.5q=ddply(X,.(ID2,ID1),.parallel=TRUE,function(x) apply(x[,4:ncol(x)],2,quantile,probs=.1))
+    X.95q=ddply(X,.(ID2,ID1),.parallel=TRUE,function(x) apply(x[,4:ncol(x)],2,quantile,probs=.9))
+
+    
+    # Calculate means by BEC units 
+    X.mean1=ddply(X.mean,.(ID2),.parallel=TRUE,function(x) apply(x[,3:ncol(x)],2,mean))
+    X.sd1=ddply(X.sd,.(ID2),.parallel=TRUE,function(x) apply(x[,3:ncol(x)],2,mean))
+    X.sd2=ddply(X.mean,.(ID2),.parallel=TRUE,function(x) apply(x[,3:ncol(x)],2,sd))
+    X.min1=ddply(X.min,.(ID2),.parallel=TRUE,function(x) apply(x[,3:ncol(x)],2,mean))
+    X.max1=ddply(X.max,.(ID2),.parallel=TRUE,function(x) apply(x[,3:ncol(x)],2,mean))
+    X.5q1=ddply(X.5q,.(ID2),.parallel=TRUE,function(x) apply(x[,3:ncol(x)],2,mean))
+    X.95q1=ddply(X.95q,.(ID2),.parallel=TRUE,function(x) apply(x[,3:ncol(x)],2,mean))
+    
+    X.mean1$Var="mean"
+    X.sd1$Var="st.dev.Ann"
+    X.sd2$Var="st.dev.Geo"
+    X.min1$Var="min"
+    X.max1$Var="max"
+    X.5q1$Var="10%"
+    X.95q1$Var="90%"
+    
+    # Concatenate Datasets:
+    X1=rbind(X.mean1,X.sd1,X.sd2,X.min1,X.max1,X.5q1,X.95q1)
+    X1$period=paste(timePeriod[i,1],timePeriod[i,2],sep="-")
+    colnames(X1)[1]="BGC"
+    final=X1[,c(1,ncol(X1),(ncol(X1)-1),2:(ncol(X1)-2))]
+    
+    # Save Outputs:
+    A=assign(paste0("final"),data.frame(final))
+    temp=rbind(temp,A)    
+    rm(list=ls(pattern="final"))
+    
+  }
+} #END
+
+
+## Reorder
+temp=temp[order(temp[,"BGC"],temp[,"period"],temp[,"Var"]),]
+
+write.csv(temp,file=paste(fname,"csv",sep="."),row.names=FALSE)
+
+```
