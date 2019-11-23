@@ -148,6 +148,36 @@ X1 <- X1.sub[, !(colnames(X1.sub) %in% highlyCorrelated), drop = FALSE]
 X1.var <- colnames(X1)
 
 ```
+
+# Remove outlier training points
+
+``` {r remove outliers}
+###This function uses mahalanobis distance to remove outlying training points below specified percentile
+removeOutlier <- function(dat, alpha){
+  out <- foreach(curr = unique(as.character(dat$BGC)), .combine = rbind) %do% {
+    temp <- dat[dat$BGC == curr,]
+    md <- tryCatch(mahalanobis(temp[,-1],center = colMeans(temp[,-1]), cov = cov(temp[,-1])),
+                   error = function(e) e
+    )
+    if(!inherits(md,"error")){
+      ctf <- qchisq(1-alpha, df = ncol(temp)-1)
+      outl <- which(md > ctf)
+      cat("Removing", length(outl), "outliers from",curr, "; ")
+      if(length(outl) > 0){
+        temp <- temp[-outl,]
+      }
+    }
+    temp
+    
+  }
+  return(out)
+}
+X1.1 <- X1 %>% select(-Zone)
+X1.sub <- removeOutlier(X1.1, alpha = 0.001)
+X1 <- X1.sub
+#X1.smote <- X1
+
+```
 # Build model of Zones
 ``` {r build model of Zones}
 ####for equal number of training points
@@ -268,8 +298,8 @@ pointDat <- grid.dat
 ######################################################
 
 X2 <-  X1
-X2 <- X1 %>%  filter(Zone == "ICH" | Zone == "BG")
-X2 <- X1 %>%  filter(Zone == "BG")
+#X2 <- X1 %>%  filter(Zone == "ICH" | Zone == "BG")
+X2 <- X1 %>%  filter(Zone == "BG" | Zone == "FG" |  Zone == "GBD" |  Zone == "MGP" |  Zone == "SGP" |  Zone == "MDCH")
 Zones <- as.character(unique(X2$Zone))
 #Zones <- as.character(unique(pointDat$Zone))
 #Zones <- sort (Zones)
@@ -312,10 +342,11 @@ SZPred <- foreach(Z = Zones, .combine = rbind) %do% {
 }
 
 grid.sbz <- dplyr::select(SZPred, ID1, BGC)#"Longitude","Latitude", "Elevation", "Zone")]
-
-hexZone <- left_join(hexZone, grid.sbz, by = "ID1")
+table(grid.sbz$BGC)
+grid.sbz <- droplevels(grid.sbz)
+hexZone2 <- left_join(hexZone, grid.sbz, by = "ID1")
 #temp <- select(hexZone, Zone, geometry)
-temp <- hexZone
+temp <- hexZone2
 temp$BGC <-  fct_explicit_na(temp$BGC , na_level = "(None)")
 table(temp$BGC)
 
@@ -332,8 +363,11 @@ t3 <- temp2 %>%
   group_by(BGC) %>%
   summarise(geometry = sf::st_union(geometry)) %>%
   ungroup()
-st_write(t3, dsn = "outputs", layer = "SubzoneRaw", driver = "ESRI Shapefile", update = TRUE)
+
 mapview(t3)
+
+st_write(t3, dsn = "outputs", layer = "Grassland_DesertSubzoneRaw", driver = "ESRI Shapefile", update = TRUE)
+
 
 # hexZone <- left_join(hexpoly, grid.sbz , by = "ID1")
 # temp <- select(hexZone, BGC, geometry)
