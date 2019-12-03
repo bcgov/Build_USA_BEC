@@ -7,6 +7,18 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+require (tools)
+require(data.table)
+require(spatstat)
+require(spatialEco)
+require(survey)
+require(scales)
+require(UBL)
+require(assertR)
+require(tidyr)
+require (tidyverse)
+require(rlang)
+require (Rcpp)
 ```
 
 ## R Markdown
@@ -15,8 +27,28 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
+```{r update BGC codes}
+#Bring in all tables
+DB_share <- ("C:/Users/whmacken/Dropbox (WorkingFiles_Telus)/USA_BGC/")
+## BGC lookup table
+BGC <- fread("D:/CommonTables/BECdb/AllModelled_BGCs_Dec2019.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
+###Edatopic
+Edatope <- fread("D:/CommonTables/BECdb/Edatopic_v11_9.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
+##ESuit
+SSeries <-fread("D:/CommonTables/BECdb/SSeries_v11.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
+##Training Points
+ESuit <- 
+
+X1 <- fread((file.choose()) ,  stringsAsFactors = FALSE,data.table = FALSE)
+#temporary script to rename and simplify training data set
+# names <- (file.choose()) 
+# X1name <- fread(names,  stringsAsFactors = FALSE,data.table = FALSE)#, select = Columns
+# X1 <-  X1[,c(1, 5:8)]
+# #X1$ZoneSubzone <- str_replace_all(X1$ZoneSubzone, fixed(" "), "")
+# X2 <- X1 %>%rename("Old_BGC" = "ZoneSubzone") %>%
+#    left_join(X1name, by = "Old_BGC") %>%
+#   dplyr::select("ID", "BGC", "LAT", "LON", "ELEV_m")
+# write.csv(X2, "USA_Training_renamed.csv", row.names = FALSE)
 ```
 
 ## Including Plots
