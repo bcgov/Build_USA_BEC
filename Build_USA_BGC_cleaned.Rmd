@@ -215,7 +215,7 @@ grid.dat <- grid.dat %>%  filter_all(all_vars(. > -9999))
 grid.dat$Zone <- predict(BGCmodel, newdata = grid.dat[,-c(1:4)])
 grid.zone <- dplyr::select(grid.dat, ID1, Zone, Latitude, Longitude,Elevation )#"Longitude","Latitude", "Elevation", "Zone")]
 grid.dat$Zone <-  fct_explicit_na(grid.dat$Zone , na_level = "(None)")
-write.csv(grid.dat, "Hexgrid800mPredictedtoZone.csv", row.names = FALSE)
+write.csv(grid.dat, "./outputs/Hexgrid800mPredictedtoZone.csv", row.names = FALSE)
 
 ##############link predicted Zones to Polygons and write shape file
 hexpoly <- st_read(dsn = "./inputs/hex_shapes", layer = "USA_HexPoly_800m_new")
@@ -375,7 +375,7 @@ countSubzone <- grid.dat.pred %>% count(BGC)
 countSubzone$logn <- log(countSubzone$n, 10)
 countSubzone$rs <- as.integer (rescale(countSubzone$logn, to = c(300, 1000), from = range(countSubzone$logn, na.rm = TRUE, finite = TRUE)))
 countSubzone$sample <- ifelse(countSubzone$rs > countSubzone$n, countSubzone$n, countSubzone$rs )
-write.csv (countSubzone, "USA_pts_per_BECLHC2.csv")
+write.csv (countSubzone, "./outputs/USA_pts_per_BECLHC2.csv")
 
 allUnits <- unique(grid.dat.pred$BGC)
 #grid.dat.pred$ID1 <- row.names(grid.dat.pred)

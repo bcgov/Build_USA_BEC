@@ -95,7 +95,7 @@ ms <- mess(raster_AOI, training_test, full=TRUE)
 names(ms) <- c(colnames(training_test),"rmess")
 plot(ms)
 ## sum MESS values for all layers
-mess <- stackApply(ms, indices =  rep(1, nlayers(ms)), fun = mean, na.rm = TRUE, filename='MeanSampledSpace', overwrite=TRUE)
+mess <- stackApply(ms, indices =  rep(1, nlayers(ms)), fun = mean, na.rm = TRUE, filename='./outputs/MeanSampledSpace', overwrite=TRUE)
 
 plot(mess)
 
