@@ -14,11 +14,14 @@ require(spatialEco)
 require(survey)
 require(scales)
 require(UBL)
-require(assertR)
+require(assertr)
 require(tidyr)
 require (tidyverse)
 require(rlang)
 require (Rcpp)
+require (readxl)
+require(stringr)
+#install.packages ("assertr")
 ```
 
 ## R Markdown
@@ -29,24 +32,25 @@ When you click the **Knit** button a document will be generated that includes bo
 
 ```{r update BGC codes}
 #Bring in all tables
-DB_share <- ("C:/Users/whmacken/Dropbox (WorkingFiles_Telus)/USA_BGC/")
+DB_share <- ("C:/Users/whmacken/Dropbox (WorkingFiles_Telus)/")
 ## BGC lookup table
-BGC <- fread("D:/CommonTables/BECdb/AllModelled_BGCs_Dec2019.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
+BGC <- fread("D:/CommonTables/BECdb/All_BGCs_v11.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
+BGC <- BGC %>% rename("BGC" = "Map_Label")
 ###Edatopic
 Edatope <- fread("D:/CommonTables/BECdb/Edatopic_v11_9.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
-##ESuit
+Edatope <- Edatope %>% rename("BGC" = "MergedBGC")
+##SiteSeries
 SSeries <-fread("D:/CommonTables/BECdb/SSeries_v11.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
+##ESuit
+ESuit <- fread("D:/CommonTables/TreeSpp/TreeSpp_ESuit_v11_19_working_04Nov2019.csv", stringsAsFactors = FALSE, data.table = FALSE)
 ##Training Points
-ESuit <- 
+TP <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE)
+TP.names <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE)
+TP <- TP %>% rename("Old_BGC" = "ZoneSubzone") 
 
-X1 <- fread((file.choose()) ,  stringsAsFactors = FALSE,data.table = FALSE)
-#temporary script to rename and simplify training data set
-# names <- (file.choose()) 
-# X1name <- fread(names,  stringsAsFactors = FALSE,data.table = FALSE)#, select = Columns
-# X1 <-  X1[,c(1, 5:8)]
-# #X1$ZoneSubzone <- str_replace_all(X1$ZoneSubzone, fixed(" "), "")
-# X2 <- X1 %>%rename("Old_BGC" = "ZoneSubzone") %>%
-#    left_join(X1name, by = "Old_BGC") %>%
+TP2 <- TP %>%  left_join(TP.names, by = "Old_BGC")
+write.csv(TP2, "Renamed_USA_TrainingPoints.csv", row.names = FALSE)
+
 #   dplyr::select("ID", "BGC", "LAT", "LON", "ELEV_m")
 # write.csv(X2, "USA_Training_renamed.csv", row.names = FALSE)
 ```
@@ -55,8 +59,16 @@ X1 <- fread((file.choose()) ,  stringsAsFactors = FALSE,data.table = FALSE)
 
 You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r update codes, echo=FALSE}
+BGC.list <- as.list (BGC$BGC)
+##test
+Edatope %>%
+  assert(in_set(unique(BGC$BGC)), BGC) %>% error_report(unique(value))
+# X1$ZoneSubzone <- str_replace_all(X1$ZoneSubzone, fixed(" "), "")
+# X2 <- X1 %>%rename("Old_BGC" = "ZoneSubzone") %>%
+#    left_join(X1name, by = "Old_BGC") %>%
+#   dplyr::select("ID", "BGC", "LAT", "LON", "ELEV_m")
+# write.csv(X2, "USA_Training_renamed.csv", row.names = FALSE)
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
