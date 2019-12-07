@@ -378,6 +378,8 @@ library(clhs)
 #BGC = "ICHxwz"
 #countZone <- points %>% count(Zone)
 countSubzone <- grid.dat.pred %>% count(BGC)
+
+rownames(grid.dat.pred) <- grid.dat.pred[,1]
 countSubzone$logn <- log(countSubzone$n, 10)
 countSubzone$rs <- as.integer (rescale(countSubzone$logn, to = c(300, 1000), from = range(countSubzone$logn, na.rm = TRUE, finite = TRUE)))
 countSubzone$sample <- ifelse(countSubzone$rs > countSubzone$n, countSubzone$n, countSubzone$rs )
@@ -390,9 +392,10 @@ coreNo <- makePSOCKcluster(detectCores() - 1)
 registerDoParallel(coreNo, cores = detectCores() - 1)
 Cores <- as.numeric(detectCores()-1)
 
-BGC = "ICHdm_BC"
+BGC = "BGdh_OR"
 LHCtraining <- foreach(BGC = allUnits, .combine = rbind, .packages = c("clhs")) %dopar% {
 temp <- grid.dat.pred[(grid.dat.pred$BGC %in% BGC),]
+temp_names <- temp[1:6]
 Num <- countSubzone$sample[(countSubzone$BGC %in% BGC)]
   samples <- clhs(temp[,-c(1:6)], 
                 size = Num,           # Test a range of sample sizes
@@ -409,8 +412,11 @@ cLHS_Points
  gc()
 
 write.csv(LHCtraining, "./outputs/USA_Training_LHC_w_data.csv", row.names = FALSE)
-LHCtraining2 <- LHCtraining [1:3] #dplyr::select(LHCtraining, ID1, BGC)#"Longitude","Latitude", "Elevation", "Zone")]
+LHCtraining2 <- LHCtraining [1:3] 
+rownames(grid.dat.raw) <- grid.dat.raw[,1]
 LHCtraining2 <- left_join(LHCtraining2, grid.dat.raw, by = "ID1")
-write.csv(LHCtraining, "./outputs/USA_Training_LHC_all_dat.csv", row.names = FALSE)
+write.csv(LHCtraining2, "./outputs/USA_LHS_all_dat.csv", row.names = FALSE)
+USA_LHS <- dplyr::select(LHCtraining2, ID1, BGC, Longitude, Latitude, Elevation)
+write.csv(USA_LHS, "./outputs/USA_LHS_for_ClimateNA.csv", row.names = FALSE)
 #X1 <- LHCtraining #feed these back into building a new rF model above
 ```
