@@ -216,7 +216,9 @@ grid.dat$Zone <- predict(BGCmodel, newdata = grid.dat[,-c(1:4)])
 grid.zone <- dplyr::select(grid.dat, ID1, Zone, Latitude, Longitude,Elevation )#"Longitude","Latitude", "Elevation", "Zone")]
 grid.dat$Zone <-  fct_explicit_na(grid.dat$Zone , na_level = "(None)")
 write.csv(grid.dat, "./outputs/Hexgrid800mPredictedtoZone.csv", row.names = FALSE)
-
+```
+# Attribute hex grid with Zone call
+```{r link to hex polygon layer}
 ##############link predicted Zones to Polygons and write shape file
 hexpoly <- st_read(dsn = "./inputs/hex_shapes", layer = "USA_HexPoly_800m_new")
 hexZone <- left_join(hexpoly, grid.zone, by = "ID1")
@@ -345,6 +347,10 @@ table(grid.sbz$BGC)
 grid.sbz <- droplevels(grid.sbz)
 grid.dat.pred <- left_join(grid.dat, grid.sbz, by = "ID1")
 grid.dat.pred <- grid.dat.pred %>% select(ID1, Zone, BGC, everything())
+write.csv(grid.dat, "./outputs/Hexgrid800mPredictedtoSubZone.csv", row.names = FALSE)
+```
+# Attribute hexpolygons with subzone predictions 
+```{r link subzone predictions to hex polygons}
 ###link to hex polygons
 hexZone2 <- left_join(hexZone, grid.sbz, by = "ID1")
 #temp <- select(hexZone, Zone, geometry)
@@ -402,6 +408,9 @@ cLHS_Points
  stopCluster(coreNo)
  gc()
 
-write.csv(LHCtraining, "USA_Training_LHC.csv")
-X1 <- LHCtraining #feed these back into building a new rF model above
+write.csv(LHCtraining, "./outputs/USA_Training_LHC_w_data.csv", row.names = FALSE)
+LHCtraining2 <- LHCtraining [1:3] #dplyr::select(LHCtraining, ID1, BGC)#"Longitude","Latitude", "Elevation", "Zone")]
+LHCtraining2 <- left_join(LHCtraining2, grid.dat.raw, by = "ID1")
+write.csv(LHCtraining, "./outputs/USA_Training_LHC_all_dat.csv", row.names = FALSE)
+#X1 <- LHCtraining #feed these back into building a new rF model above
 ```
