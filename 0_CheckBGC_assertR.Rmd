@@ -46,13 +46,24 @@ ESuit <- fread("D:/CommonTables/TreeSpp/TreeSpp_ESuit_v11_19_working_04Nov2019.c
 ##Training Points
 TP <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE)
 TP.names <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE)
-TP <- TP %>% rename("Old_BGC" = "ZoneSubzone") 
-
+#TP <- TP %>% rename("Old_BGC" = "ZoneSubzone") 
 TP2 <- TP %>%  left_join(TP.names, by = "Old_BGC")
 write.csv(TP2, "Renamed_USA_TrainingPoints.csv", row.names = FALSE)
 
 #   dplyr::select("ID", "BGC", "LAT", "LON", "ELEV_m")
 # write.csv(X2, "USA_Training_renamed.csv", row.names = FALSE)
+#Site Series to use this updates all old BGC codes to new one using lookup table
+SSU <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE) ###SStoUse
+SSU.names <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE, header = TRUE)##USA BGC Names. csv
+SSU<- SSU %>% rename("Old_BGC_NoSpace" = "Zone") 
+SSU2 <- SSU %>%  left_join(SSU.names, by = "Old_BGC_NoSpace")
+SSU3 <- SSU2 %>% separate(SS_NoSpace, c("oldbgc", "siteseries"), sep = "/")
+SSU4 <- SSU3 %>%  mutate(newBGC = case_when (!(is.na(BGC_NoSpace)) ~ BGC_NoSpace,
+                                             is.na(BGC_NoSpace) ~Old_BGC_NoSpace)) %>% 
+  mutate(SS_NoSpace = paste0(newBGC, "/", siteseries)) %>% 
+  select (Source, newBGC, SS_NoSpace, Edatopic, Special, Codes, `New Zone`, `New SS`,NewBGCSS, Action, 'Based on:', Date_Updated ) %>% 
+  rename(BGC = newBGC)
+write.csv(SSU4, "Edatopic_v11_19.csv", row.names = FALSE)
 ```
 
 ## Including Plots
