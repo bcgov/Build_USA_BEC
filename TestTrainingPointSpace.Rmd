@@ -87,7 +87,7 @@ training_test <-  drop_na (training_test)
 raster_AOI <- dropLayer(raster_AOI, remove.num)
 names(raster_AOI) <- c(colnames(training_test))
 ```
-
+## Looks for undersampled space in the map
 
 ```{r run MESS function}
 ## run MESS function 
