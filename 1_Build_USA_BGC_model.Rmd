@@ -72,6 +72,8 @@ Several additional climate variables are calculated
 
 X1 <- fread("./inputs/training_pts/US_TrainingPointsAll_31Mar2020_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
 
+X1 <- fread(file.choose(),  stringsAsFactors = FALSE,data.table = FALSE)
+
 X1_loc <- X1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
 
 # X2 <- fread("./cLHS/WNA_Training_22_VARS.csv", stringsAsFactors = FALSE, data.table = FALSE)
@@ -114,29 +116,15 @@ May also indicate overly broad BGCs (eg. IMAus)
 # # X1_test <- X1_test[,-c(4:17)]
 #  outlier <- psych::outlier(X1_Bio1[-1])
 #  X1_Bio1 [,-c(1)] <- dmap (X1_Bio1 [,-c(1)], as.numeric)
-# md <- mahalanobis(X1_Bio1[,-1], center = colMeans(X1_Bio1[,-1]), cov = cov(X1_Bio[,-1]))
-# 
-# alpha <- .001
-# 
-# cutoff <- (qchisq(p = 1 - alpha, df = ncol(data_outlier)))
-# 
-# names_outliers_MH <- which(md > cutoff)
-# 
-# excluded_mh <- names_outliers_MH
-# 
-# data_clean_mh <- data_outlier[-excluded_mh, ]
-# 
-# data[excluded_mh, ] 
-#  
- 
-# plot(outlier)
 
-removeOutlier <- function(dat, alpha){
-  out <- foreach(curr = unique(as.character(dat$Zone)), .combine = rbind) %do% {
-    temp <- dat[dat$Zone == curr,]
-    md <- tryCatch(mahalanobis(temp[,-c(1:2)],center = colMeans(temp[,-c(1:2)], cov = cov(temp[,-c(1:2)]))),
-                   error = function(e) e
-    )
+ 
+
+removeOutlier <- function(dat, alpha,numIDvars){
+  out <- foreach(curr = unique(as.character(dat$BGC)), .combine = rbind) %do% {
+    temp <- dat[dat$BGC == curr,]
+    md <- tryCatch(mahalanobis(temp[,-c(1:numIDvars)],
+                               center = colMeans(temp[,-c(1:numIDvars)]), 
+                               cov = cov(temp[,-c(1:numIDvars)])), error = function(e) e)
     if(!inherits(md,"error")){
       ctf <- qchisq(1-alpha, df = ncol(temp)-1)
       outl <- which(md > ctf)
@@ -151,7 +139,7 @@ removeOutlier <- function(dat, alpha){
   return(out)
 }
 
- X2 <- removeOutlier(X1, alpha = .001)
+ X2 <- removeOutlier(X1, alpha = .001,numIDvars = 2)
 
  ####show histogram of variables
  skimmed <- skim(X1_Bio2)
