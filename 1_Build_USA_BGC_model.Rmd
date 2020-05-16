@@ -71,36 +71,130 @@ Several additional climate variables are calculated
 ```{r input data, echo=FALSE}
 
 X1 <- fread("./inputs/training_pts/US_TrainingPointsAll_31Mar2020_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
+X1 <- X1 %>% dplyr::select(-BGC)
+## update BGC from new table with updated BGC
+X1_new <- fread("./inputs/training_pts/US_TrainingPointsAll_15May2020_dm.csv",  stringsAsFactors = FALSE,data.table = FALSE)
+X1_new <- X1_new %>% dplyr::select(ID1, BGC)
+##temporary updates
+# X1_new2 <- fread("./inputs/training_pts/CWHvm_to_CWHms_2.csv",  stringsAsFactors = FALSE,data.table = FALSE)
+# X1_new2$BGC <- recode(X1_new2$BGC, "CWHvm_WA" = "CWHms_WA") 
+# X1_new2 <- X1_new2 %>% dplyr::select(ID1, BGC) 
+# X1_new <- left_join(X1_new, X1_new2, by = "ID1")
+# X1_new$BGC.y <- ifelse(is.na(X1_new$BGC.y), X1_new$BGC.x, X1_new$BGC.y)
+# X1_new <- X1_new %>% select(ID1, BGC.y) %>% rename(BGC = BGC.y)
+## update BGC from new table with updated BGC
 
-X1 <- fread(file.choose(),  stringsAsFactors = FALSE,data.table = FALSE)
+X1 <- left_join(X1, X1_new, by = "ID1")
+
+#X1 <- fread(file.choose(),  stringsAsFactors = FALSE,data.table = FALSE)
 
 X1_loc <- X1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
+X1 <- X1 %>% dplyr::select (ID1, BGC, everything()) %>% dplyr::select(-Latitude, -Longitude, -Elevation)
 
 # X2 <- fread("./cLHS/WNA_Training_22_VARS.csv", stringsAsFactors = FALSE, data.table = FALSE)
 # X3 <- left_join(X2, X1) %>% dplyr::select(ID1, BGC, Latitude, Longitude, Elevation)
 # write.csv(X3, "LHS_Training_Locations.csv")
 
+addVars <- function(dat){
+  dat$PPT_MJ <- dat$PPT05 + dat$PPT06  # MaY/June precip
+  dat$PPT_JAS <- dat$PPT07 + dat$PPT08 + dat$PPT09  # July/Aug/Sept precip
+  dat$PPT.dormant <- dat$PPT_at + dat$PPT_wt  # for calculating spring deficit
+  dat$CMD.def <- 500 - (dat$PPT.dormant)  # start of growing season deficit original value was 400 but 500 seems better
+  dat$CMD.def[dat$CMD.def < 0] <- 0  #negative values set to zero = no deficit
+  dat$CMDMax <- dat$CMD07
+  dat$CMD.total <- dat$CMD.def + dat$CMD
+  dat$CMD.grow <- dat$CMD05 + dat$CMD06 +dat$CMD07 +dat$CMD08 +dat$CMD09
+  dat$DD5.grow <- dat$DD5_05 + dat$DD5_06 + dat$DD5_07 + dat$DD5_08 + dat$DD5_09
+  dat$CMDMax <- dat$CMD07 # add in so not removed below
+  dat$DDgood <- dat$DD5 - dat$DD18
+  dat$DDnew <- (dat$DD5_05 + dat$DD5_06 +dat$DD5_07  + dat$DD5_08)  - (dat$DD18_05 + dat$DD18_06 +dat$DD18_07 +dat$DD18_08)
+  dat$TmaxJuly <- dat$Tmax07
+  dat$tmaxSum20 <-  dat %>%
+      select( starts_with("Tmax")) %>% -20 %>%
+              mutate_all(., list(~ifelse(. < 0, 0 , .))) %>%
+                    rowSums(na.rm = TRUE)
 
-# ####Prepare additional variables
-X1$PPT_MJ <- X1$PPT05 + X1$PPT06 # MaY/June precip
-X1$PPT_JAS <- X1$PPT07 + X1$PPT08 + X1$PPT09 # July/Aug/Sept precip
-X1$PPT.dormant <- X1$PPT_at + X1$PPT_wt # for calculating spring deficit
-X1$CMD.def <- 500 - (X1$PPT.dormant)# start of growing season deficit original value was 400 but 500 seems better
-X1$CMD.def [X1$CMD.def < 0] <- 0 #negative values set to zero = no deficit
-X1$CMD.grow <- X1$CMD05 + X1$CMD06 +X1$CMD07 +X1$CMD08 +X1$CMD09
-X1$DD5.grow <- X1$DD5_05 + X1$DD5_06 + X1$DD5_07 + X1$DD5_08 + X1$DD5_09
-X1$CMD.total <- X1$CMD.def + X1$CMD
-X1$CMDMax <- X1$CMD07 # add in so not removed below
-X1$DDgood <- X1$DD5 - X1$DD18
-X1$DDnew <- (X1$DD5_05 + X1$DD5_06 +X1$DD5_07  + X1$DD5_08)  - (X1$DD18_05 + X1$DD18_06 +X1$DD18_07 +X1$DD18_08)
-X1$TmaxJuly <- X1$Tmax07
-modelvars <- read.csv("./inputs/Final22Var_WNABGCv11.csv")##use model variables from buildrf work
-X1 <- X1 %>% dplyr::select(ID1, BGC, modelvars$x) %>% drop_na(BGC)
+dat$tmaxSum25 <-  dat %>%
+      select( starts_with("Tmax")) %>% -25 %>%
+              mutate_all(., list(~ifelse(. < 0, 0 , .))) %>%
+                    rowSums(na.rm = TRUE)
+
+dat$tmaxSum30 <-  dat %>%
+      select( starts_with("Tmax")) %>% -30 %>%
+              mutate_all(., list(~ifelse(. < 0, 0 , .))) %>%
+                    rowSums(na.rm = TRUE)
+
+dat$tmaxSum35 <-  dat %>%
+      select( starts_with("Tmax")) %>% -35 %>%
+              mutate_all(., list(~ifelse(. < 0, 0 , .))) %>%
+                    rowSums(na.rm = TRUE)
+
+# remove some redundant variables considered undesireable
+month <- c("01", "02", "03", "04", "05", "06","07", "08", "09", "10", "11", "12")
+dat <- dat  %>% dplyr::select(-ends_with(month)) %>% #removes all monthly variables
+  dplyr::select(-starts_with("Rad")) %>% ##remove other non-biological variables
+  dplyr::select(-starts_with("RH")) %>%
+  dplyr::select (-contains("DD_0")) %>%
+   dplyr::select  (-contains("DD18")) %>%
+   dplyr::select  (-contains("DD_18"))  %>%
+  dplyr::select( -PPT_sp, -FFP, -PAS_sm, -PPT_at, -PAS_at, - MAP, -TD, -MAT)
+  return(dat)
+}
+
+
+X1 <- addVars(X1)
+#$BGC <- as.factor(X1$BGC)
+```
+The preprocessing function from the caret package was used to identify variables with near-zero variance or correlation >0.90 in the combined data set. These variables were removed leaving a final variable set of 20 variables.
+```{r reduce variables, warning=FALSE} 
+########Remove near zero variance and highly correlated variables
+X1_no_nzv_pca <- preProcess(X1[,-c(1:2)], method = c( "nzv")) # DROP variables with near zero variance
+X1_no_nzv_pca
+X1 <- dplyr::select(X1, -c(X1_no_nzv_pca$method$remove))
+X1 <- X1 %>%  na_if(-9999.0) %>% drop_na()
+
+# calculate correlation matrix of variables
+correlationMatrix <- cor(X1[,-c(1:2)])
+# summarize the correlation matrix
+#print(correlationMatrix)
+# find attributes that are highly corrected (ideally >0.75)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.95, verbose = TRUE, names = TRUE) ## review for removal of highly correlated vars
+X1 <- X1 %>% dplyr::select(-c(highlyCorrelated))%>% drop_na(BGC)
+
+
+modelvars <- colnames(X1 %>% dplyr::select(-ID1,  -BGC, everything()))
+X1 <- X1 %>% dplyr::select(ID1, BGC, all_of(modelvars)) 
+
+# modelvars <- read.csv("./inputs/Final14Var_WNABGCv11.csv")##use model variables from buildrf work
+# X1 <- X1 %>% dplyr::select(ID1, BGC, modelvars$x) %>% drop_na(BGC)
 X1$BGC <- as.factor(X1$BGC)
 X1 <- droplevels(X1)
 
 ```
 
+# remove undersampled BGCs
+```{r remove undersampled}
+#removeBGCs <- c("ICHdm", "IDFxx1")
+#X2 <- X1 %>% filter(!(BGC %in% removeBGCs)) %>% droplevels()
+# merge parkland into adjacent alpine unit
+X1$BGC <- X1$BGC %>% recode( MHdsp_OR = "CMAun_OR", MHRFdmp_OR = "CMAun_OR", MHRFmmp_OR = "CMAun_OR", MHmsp_WA = "CMAun_WA",
+                             "MHRFdsp_CA" = "CMAun_CA", "MHdsp_OR" = "CMAun_OR" , "MHRFdmp_OR"= "CMAun_OR" , "MHRFmmp_OR"= "CMAun_OR" , 
+                            "MHmsp_WA" ="CMAun_WA" , "MHmmp_WA"= "CMAun_WA" ,
+                             "ESSFxcp_CO"=  "IMAun_CO" , "ESSFwmp_MT"="IMAun_MT" , "ESSFxkp_UT"= "IMAun_UT" , "ESSFxkp_MT"= "IMAun_MT" , 
+                             "ESSFdmp_ID"="IMAun_ID" ,"ESSFdkp_MT"=  "IMAun_MT" ,"ESSFxcp_WA" = "IMAun_WA" ,"ESSFmwp_WA" = "IMAun_WA" ,
+                           "ESSFxwp_OR" = "IMAun_OR" )
+## merge of related units with high confusion in first run
+#X1$BGC <- X1$BGC %>% recode( CWHvm_OR = "CWHvm_WA", MHRFdmp_OR = "CMAun_OR")
+#                             , MHRFmmp_OR = "CMAun_OR", MHmsp_WA = "CMAun_WA",
+#                              "MHRFdsp_CA" = "CMAun_CA", "MHdsp_OR" = "CMAun_OR" , "MHRFdmp_OR"= "CMAun_OR" , "MHRFmmp_OR"= "CMAun_OR" , 
+#                             "MHmsp_WA" ="CMAun_WA" , "MHmmp_WA"= "CMAun_WA" ,
+#                              "ESSFxcp_CO"=  "IMAun_CO" , "ESSFwmp_MT"="IMAun_MT" , "ESSFxkp_UT"= "IMAun_UT" , "ESSFxkp_MT"= "IMAun_MT" , 
+#                              "ESSFdmp_ID"="IMAun_ID" ,"ESSFdkp_MT"=  "IMAun_MT" ,"ESSFxcp_WA" = "IMAun_WA" ,"ESSFmwp_WA" = "IMAun_WA" ,
+#                            "ESSFxwp_OR" = "IMAun_OR" )
+ BGCs <- unique(X1$BGC)
+BGCs
+#X1 <- X2
+```
 
 ##Remove outliers points
 Looks for training points which fall climatically well outside of the normal range by BGC.
@@ -142,7 +236,7 @@ removeOutlier <- function(dat, alpha,numIDvars){
  X2 <- removeOutlier(X1, alpha = .001,numIDvars = 2)
 
  ####show histogram of variables
- skimmed <- skim(X1_Bio2)
+ skimmed <- skim(X2)
 skimmed
 
 
@@ -155,7 +249,6 @@ featurePlot(x =  X1[, -c(1:2)],
                           y = list(relation="free")))
 
 ```
-
 
 # Build model of BGCs
 The model reduced via RFE to 14 variables is approximately 84.3% accurate and 83% Gini. When all variables are used (44) the accuracy and Gini increase by approximately 1%.
@@ -193,11 +286,11 @@ Stay with limited set
 
 
 #############simple ranger model
-BGCmodel <- ranger(BGC ~ ., data = X1[,-c(1)], #do.trace = 10,
-                           num.trees = 501,   importance = "impurity", splitrule = "extratrees", seed = 12345, write.forest = TRUE, classification = TRUE)#strata=BGC, sampsize= c(500),
+BGCmodel <- ranger(BGC ~ ., data = X2[,-c(1)], #do.trace = 10,
+                           num.trees = 501,   importance = "impurity", splitrule = "extratrees", seed = 12345, write.forest = TRUE, classification = TRUE)#strata=BGC, sampsize= c(500),, probability = TRUE
 
 BGCmodel
-save(BGCmodel,file= "./outputs/USAv11_22_VAR_SubZone_ranger.Rdata")
+#save(BGCmodel,file= "./outputs/USAv11_26_VAR_SubZone_ranger.Rdata")
 v <-as.data.frame(BGCmodel$variable.importance)
 DF <- v %>% tibble::rownames_to_column() %>% rename(w = rowname, v = 'BGCmodel$variable.importance')
  
@@ -209,15 +302,34 @@ DF <- v %>% tibble::rownames_to_column() %>% rename(w = rowname, v = 'BGCmodel$v
    guides(fill=F)+
    scale_fill_gradient(low="red", high="blue")
 
- fname <- "USA_22var"
-model = "_ranger_31Mar2020"
+ fname <- "USA_28var"
+model = "_ranger_10May2020"
 write.csv (BGCmodel$variable.importance, file= paste("./outputs/",fname,"_Importance",model,".csv",sep=""))
 write.csv (BGCmodel$prediction.error, file= paste("./outputs/",fname,"_Error",model,".csv",sep=""))
 write.csv (BGCmodel$confusion.matrix, file= paste("./outputs/",fname,"_ConfusionMatrix",model,".csv",sep=""))
 
+####alternate model build
+ fname <- "USA_28var"
+model = "_rf_13May2020_2"
+BGCmodel_rf <- randomForest(BGC ~ ., data = X2[,-c(1)], do.trace = 10,
+                          ntree = 101,   importance = TRUE)#strata=BGC, sampsize= c(500),, probability = TRUE
+
+write.csv (BGCmodel_rf$confusion, file= paste("./outputs/",fname,"_ConfusionMatrix",model,".csv",sep=""))
+write.csv (BGCmodel_rf$err.rate, file= paste("./outputs/",fname,"_error",model,".csv",sep=""))
 ```
 
-```{r graphical confusion}
+```{r build points file of misclassified point}
+###Predict
+X2$BGC.pred <- predict(BGCmodel_rf, data = X2[,-c(1:2)])
+
+X2.mis <- X2 %>% select(ID1, BGC, BGC.pred) %>% filter(BGC != BGC.pred) %>% left_join(X1_loc)
+
+write.csv(X2.mis, "./outputs/Confused_Points09_May2020.csv", row.names = FALSE)
+
+```
+
+
+```{r graphical confusion for ranger}
 # xtab <- BGCmodel_subz$pred
 # cm <- confusionMatrix(data = xtab$pred, reference = xtab$obs)
 # cm.tab <- as.matrix(cm)
@@ -274,7 +386,7 @@ Z1.pred <- cbind(Z1_loc, grid.pred$predictions)
 Z1.pred$BGC <-  fct_explicit_na(Z1.pred$`grid.pred$predictions` , na_level = "(None)")
 #write.csv(grid.dat, "./outputs/Hexgrid800mPredictedtoSubZone_30vars.csv", row.names = FALSE)
 Z1.pred <- dplyr::select(Z1.pred, ID1, BGC, Latitude, Longitude,Elevation )#"Longitude","Latitude", "Elevation", "Zone")]
-write.csv(Z1.pred, "./outputs/Hexgrid800mPredictedtoSubZone_Mar31.csv", row.names = FALSE)
+write.csv(Z1.pred, "./outputs/Hexgrid800mPredictedtoSubZone_May5.csv", row.names = FALSE)
 ```
 # Attribute hex grid with Zone call
 ```{r link to hex polygon layer}
