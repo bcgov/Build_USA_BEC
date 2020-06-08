@@ -2,7 +2,10 @@
 title: "Model USA Biogeoclimatic Units using Machine Learning"
 author: "William H MacKenzie and Kiri Daust"
 date: "17/10/2019"
-output: html_document
+output: 
+  html_document:
+  code_folding: hide
+  #theme: flatly
 ---
 # Script to create RF model from USA training points and predict + map US zones/ subzones (predicted within each zone)
 Import training data
@@ -17,7 +20,7 @@ Overlay additional plots over map to assign to USA_BGC units
 
 # STEP 1: Prepare dataset for analysis----clear workspace
 ```{r setup, include=FALSE, echo=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
 require(rattle)
 require(rpart)
 require(rpart.plot)
@@ -73,7 +76,7 @@ Several additional climate variables are calculated
 X1 <- fread("./inputs/training_pts/US_TrainingPointsAll_31Mar2020_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
 X1 <- X1 %>% dplyr::select(-BGC)
 ## update BGC from new table with updated BGC
-X1_new <- fread("./inputs/training_pts/US_TrainingPointsAll_15May2020_dm.csv",  stringsAsFactors = FALSE,data.table = FALSE)
+X1_new <- fread("./inputs/training_pts/US_TrainingPoints_4June2020.csv",  stringsAsFactors = FALSE,data.table = FALSE)
 X1_new <- X1_new %>% dplyr::select(ID1, BGC)
 ##temporary updates
 # X1_new2 <- fread("./inputs/training_pts/CWHvm_to_CWHms_2.csv",  stringsAsFactors = FALSE,data.table = FALSE)
@@ -86,7 +89,12 @@ X1_new <- X1_new %>% dplyr::select(ID1, BGC)
 
 X1 <- left_join(X1, X1_new, by = "ID1")
 
-#X1 <- fread(file.choose(),  stringsAsFactors = FALSE,data.table = FALSE)
+##Add in border points from BC and Alberta from WNA 4k Grid data
+Y1 <- fread("./inputs/training_pts/WNA_4k_HexPts_BGC_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
+Y2 <- Y1 %>% filter(BGC %in% c("CDFmm", "ICHdm", "IDFxx1", "CWHds1", "CWHms1", "MSdm2")) %>% filter(Latitude < 49.5)
+#Y3 <- Y1 %>% filter(Latitude > 49) %>% filter(Latitude < 49.5)
+X1 <- rbind(X1,Y2)
+#X1 <- rbind(X2,Y3)
 
 X1_loc <- X1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
 X1 <- X1 %>% dplyr::select (ID1, BGC, everything()) %>% dplyr::select(-Latitude, -Longitude, -Elevation)
@@ -159,7 +167,7 @@ correlationMatrix <- cor(X1[,-c(1:2)])
 #print(correlationMatrix)
 # find attributes that are highly corrected (ideally >0.75)
 highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.95, verbose = TRUE, names = TRUE) ## review for removal of highly correlated vars
-X1 <- X1 %>% dplyr::select(-c(highlyCorrelated))%>% drop_na(BGC)
+#X1 <- X1 %>% dplyr::select(-c(highlyCorrelated))%>% drop_na(BGC)
 
 
 modelvars <- colnames(X1 %>% dplyr::select(-ID1,  -BGC, everything()))
@@ -184,7 +192,7 @@ X1$BGC <- X1$BGC %>% recode( MHdsp_OR = "CMAun_OR", MHRFdmp_OR = "CMAun_OR", MHR
                              "ESSFdmp_ID"="IMAun_ID" ,"ESSFdkp_MT"=  "IMAun_MT" ,"ESSFxcp_WA" = "IMAun_WA" ,"ESSFmwp_WA" = "IMAun_WA" ,
                            "ESSFxwp_OR" = "IMAun_OR" )
 ## merge of related units with high confusion in first run
-#X1$BGC <- X1$BGC %>% recode( CWHvm_OR = "CWHvm_WA", MHRFdmp_OR = "CMAun_OR")
+X1$BGC <- X1$BGC %>% recode( CDFmm_WA = "CDFmm")# , MHRFdmp_OR = "CMAun_OR")
 #                             , MHRFmmp_OR = "CMAun_OR", MHmsp_WA = "CMAun_WA",
 #                              "MHRFdsp_CA" = "CMAun_CA", "MHdsp_OR" = "CMAun_OR" , "MHRFdmp_OR"= "CMAun_OR" , "MHRFmmp_OR"= "CMAun_OR" , 
 #                             "MHmsp_WA" ="CMAun_WA" , "MHmmp_WA"= "CMAun_WA" ,
@@ -233,7 +241,7 @@ removeOutlier <- function(dat, alpha,numIDvars){
   return(out)
 }
 
- X2 <- removeOutlier(X1, alpha = .001,numIDvars = 2)
+ X2 <- removeOutlier(X1, alpha = .01,numIDvars = 2)
 
  ####show histogram of variables
  skimmed <- skim(X2)
@@ -248,6 +256,38 @@ featurePlot(x =  X1[, -c(1:2)],
             scales = list(x = list(relation="free"), 
                           y = list(relation="free")))
 
+```
+## Reduce sample size of oversampled BGCs via cLHS
+
+```{r downsample over sampled units}
+LHCUnits <- c("CWHdm_OR", "IMAun_WY")
+LHCtraining <- foreach(BGC = LHCUnits, .combine = rbind, .packages = c("clhs", "caret", "dplyr"),.errorhandling="remove") %do% { #
+  temp <- X2[(X2$BGC %in% BGC),]
+  temp <- temp[,-c(2)]
+  temp <- na.omit(temp)
+  temp$xx <- ""
+  temp <- droplevels(temp)
+  Num <- 1000 #X2_LHC$n[(X2_LHC$BGC %in% BGC)]
+  nz <- nearZeroVar(temp, names=T) # remove near zero variance variables which cause cLHS to fail
+   samples <- clhs(temp[, -which (names(temp) %in% nz)], #CMD with all zeros precluded sampling of coastal units
+                  size = Num,           # Test a range of sample sizes
+                  iter = 1000,        # Arbitrarily large number of iterations of optimization procedure. Default=10,000 but a larger number may be used
+                  progress = FALSE, obj.limit = -Inf, eta = 1,
+                  simple = FALSE)
+
+  cLHS <- samples$sampled_data
+
+  cLHS <-  cLHS %>% select(ID1)#,BGC)
+  #cLHS$ID1 <- row.names(cLHS)
+  cLHS_Points <- left_join (cLHS, X2,  by = "ID1")
+  cLHS_Points
+}
+
+#LHCtraining <- droplevels(LHCtraining)
+LHCtraining.list <- unique(as.character(LHCtraining$BGC))
+X3 <- X2 %>% filter(!(BGC %in% LHCtraining.list))
+X4 <- rbind(X3, LHCtraining)
+X2 <- X4
 ```
 
 # Build model of BGCs
@@ -286,6 +326,9 @@ Stay with limited set
 
 
 #############simple ranger model
+modelvars <- as.data.frame(colnames(X2[,-c(1:2)]))
+colnames(modelvars) <- "x"
+
 BGCmodel <- ranger(BGC ~ ., data = X2[,-c(1)], #do.trace = 10,
                            num.trees = 501,   importance = "impurity", splitrule = "extratrees", seed = 12345, write.forest = TRUE, classification = TRUE)#strata=BGC, sampsize= c(500),, probability = TRUE
 
@@ -302,19 +345,25 @@ DF <- v %>% tibble::rownames_to_column() %>% rename(w = rowname, v = 'BGCmodel$v
    guides(fill=F)+
    scale_fill_gradient(low="red", high="blue")
 
- fname <- "USA_28var"
-model = "_ranger_10May2020"
+ fname <- "USA_26var"
+model = "_ranger_8June2020"
 write.csv (BGCmodel$variable.importance, file= paste("./outputs/",fname,"_Importance",model,".csv",sep=""))
 write.csv (BGCmodel$prediction.error, file= paste("./outputs/",fname,"_Error",model,".csv",sep=""))
 write.csv (BGCmodel$confusion.matrix, file= paste("./outputs/",fname,"_ConfusionMatrix",model,".csv",sep=""))
 
 ####alternate model build
- fname <- "USA_28var"
-model = "_rf_13May2020_2"
+ fname <- "USA_26var"
+model = "_rf_8June2020_BC_Add"
 BGCmodel_rf <- randomForest(BGC ~ ., data = X2[,-c(1)], do.trace = 10,
                           ntree = 101,   importance = TRUE)#strata=BGC, sampsize= c(500),, probability = TRUE
 
-write.csv (BGCmodel_rf$confusion, file= paste("./outputs/",fname,"_ConfusionMatrix",model,".csv",sep=""))
+confusion.matrix <- as.data.frame(BGCmodel_rf$confusion)
+
+confusion.matrix <- confusion.matrix %>% rownames_to_column(var = "BGC") %>%  
+    select(BGC, class.error, everything()) %>%
+    mutate (nplot = rowSums(.[,-c(1:2)])) %>% 
+    select(BGC, class.error, nplot, everything())
+write.csv (confusion.matrix , file= paste("./outputs/",fname,"_ConfusionMatrix",model,".csv",sep=""), row.names = FALSE)
 write.csv (BGCmodel_rf$err.rate, file= paste("./outputs/",fname,"_error",model,".csv",sep=""))
 ```
 
@@ -324,7 +373,7 @@ X2$BGC.pred <- predict(BGCmodel_rf, data = X2[,-c(1:2)])
 
 X2.mis <- X2 %>% select(ID1, BGC, BGC.pred) %>% filter(BGC != BGC.pred) %>% left_join(X1_loc)
 
-write.csv(X2.mis, "./outputs/Confused_Points09_May2020.csv", row.names = FALSE)
+write.csv(X2.mis, "./outputs/Confused_Points7_June2020.csv", row.names = FALSE)
 
 ```
 
@@ -357,24 +406,15 @@ write.csv(X2.mis, "./outputs/Confused_Points09_May2020.csv", row.names = FALSE)
 ``` {r Build }
 #load("./outputs/USA_Zone_RFModel_Dec4.Rdata")
 # bring in grid data with climate attributes
-Z1 <- fread("./inputs/grids/USA_800m_HexPts_Normal_1961_1990MSY.csv", stringsAsFactors = FALSE,  data.table = FALSE)
+
+Z1 <- fread("./inputs/grids/WA_8000m_HexPts_Normal_1961_1990MSY.csv", stringsAsFactors = FALSE,  data.table = FALSE)
 Z1_loc <-  Z1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
+
+Z1 <- addVars(Z1)
 #grid.dat <- fread("./inputs/grids/USA_8000m_Grid_Climate_new_Normal_1961_1990MSY.csv", stringsAsFactors = FALSE,  data.table = FALSE)### add in the extra climate variables
-Z1$PPT_MJ <- Z1$PPT05 + Z1$PPT06 # MaY/June precip
-Z1$PPT_JAS <- Z1$PPT07 + Z1$PPT08 + Z1$PPT09 # July/Aug/Sept precip
-Z1$PPT.dormant <- Z1$PPT_at + Z1$PPT_wt # for calculating spring deficit
-Z1$CMD.def <- 500 - (Z1$PPT.dormant)# start of growing season deficit original value was 400 but 500 seems better
-Z1$CMD.def [Z1$CMD.def < 0] <- 0 #negative values set to zero = no deficit
-Z1$CMD.grow <- Z1$CMD05 + Z1$CMD06 +Z1$CMD07 +Z1$CMD08 +Z1$CMD09
-Z1$DD5.grow <- Z1$DD5_05 + Z1$DD5_06 + Z1$DD5_07 + Z1$DD5_08 + Z1$DD5_09
-Z1$CMD.total <- Z1$CMD.def + Z1$CMD
-Z1$CMDMax <- Z1$CMD07 # add in so not removed below
-Z1$DDgood <- Z1$DD5 - Z1$DD18
-Z1$DDnew <- (Z1$DD5_05 + Z1$DD5_06 +Z1$DD5_07  + Z1$DD5_08)  - (Z1$DD18_05 + Z1$DD18_06 +Z1$DD18_07 +Z1$DD18_08)
-Z1$TmaxJuly <- Z1$Tmax07
-modelvars <- read.csv("./inputs/Final22Var_WNABGCv11.csv")##use model variables from buildrf work
+#modelvars <- read.csv("./inputs/Final22Var_WNABGCv11.csv")##use model variables from buildrf work
 modelvars <- modelvars %>% filter(x !="BGC")
-grid.dat <- Z1 %>% dplyr::select(ID1,modelvars$x) %>%  filter_all(all_vars(. > -9999))
+grid.dat <- Z1 %>% dplyr::select(ID1,modelvars$x) #%>%  filter_all(all_vars(. > -9999))
 
 ###Predict
 grid.pred <- predict(BGCmodel, data = grid.dat[,-c(1)])
