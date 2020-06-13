@@ -3,7 +3,7 @@ title: "Model USA Biogeoclimatic Units using Machine Learning"
 author: "William H MacKenzie and Kiri Daust"
 date: "17/10/2019"
 output: 
-  html_document:
+   html_document:
   code_folding: hide
   #theme: flatly
 ---
@@ -76,7 +76,7 @@ Several additional climate variables are calculated
 X1 <- fread("./inputs/training_pts/US_TrainingPointsAll_31Mar2020_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
 X1 <- X1 %>% dplyr::select(-BGC)
 ## update BGC from new table with updated BGC
-X1_new <- fread("./inputs/training_pts/US_TrainingPoints_4June2020.csv",  stringsAsFactors = FALSE,data.table = FALSE)
+X1_new <- fread("./inputs/training_pts/US_TrainingPoints_12June2020.csv",  stringsAsFactors = FALSE,data.table = FALSE)
 X1_new <- X1_new %>% dplyr::select(ID1, BGC)
 ##temporary updates
 # X1_new2 <- fread("./inputs/training_pts/CWHvm_to_CWHms_2.csv",  stringsAsFactors = FALSE,data.table = FALSE)
@@ -87,11 +87,11 @@ X1_new <- X1_new %>% dplyr::select(ID1, BGC)
 # X1_new <- X1_new %>% select(ID1, BGC.y) %>% rename(BGC = BGC.y)
 ## update BGC from new table with updated BGC
 
-X1 <- left_join(X1, X1_new, by = "ID1")
+X1 <- left_join(X1, X1_new, by = "ID1") %>% filter(!BGC == "NA")
 
 ##Add in border points from BC and Alberta from WNA 4k Grid data
 Y1 <- fread("./inputs/training_pts/WNA_4k_HexPts_BGC_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
-Y2 <- Y1 %>% filter(BGC %in% c("CDFmm", "ICHdm", "IDFxx1", "CWHds1", "CWHms1", "MSdm2")) %>% filter(Latitude < 49.5)
+Y2 <- Y1 %>% filter(BGC %in% c("CDFmm", "ICHdm", "IDFxx1", "CWHms1", "MSdm2")) %>% filter(Latitude < 49.5)
 #Y3 <- Y1 %>% filter(Latitude > 49) %>% filter(Latitude < 49.5)
 X1 <- rbind(X1,Y2)
 #X1 <- rbind(X2,Y3)
@@ -167,14 +167,14 @@ correlationMatrix <- cor(X1[,-c(1:2)])
 #print(correlationMatrix)
 # find attributes that are highly corrected (ideally >0.75)
 highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.95, verbose = TRUE, names = TRUE) ## review for removal of highly correlated vars
-#X1 <- X1 %>% dplyr::select(-c(highlyCorrelated))%>% drop_na(BGC)
+X1 <- X1 %>% dplyr::select(-c(highlyCorrelated))%>% drop_na(BGC)
 
 
 modelvars <- colnames(X1 %>% dplyr::select(-ID1,  -BGC, everything()))
-X1 <- X1 %>% dplyr::select(ID1, BGC, all_of(modelvars)) 
+X1 <- X1 %>% dplyr::select(ID1, BGC, all_of(modelvars))
 
 # modelvars <- read.csv("./inputs/Final14Var_WNABGCv11.csv")##use model variables from buildrf work
-# X1 <- X1 %>% dplyr::select(ID1, BGC, modelvars$x) %>% drop_na(BGC)
+#X1 <- X1 %>% dplyr::select(ID1, BGC, modelvars$x) %>% drop_na(BGC)
 X1$BGC <- as.factor(X1$BGC)
 X1 <- droplevels(X1)
 
@@ -287,7 +287,7 @@ LHCtraining <- foreach(BGC = LHCUnits, .combine = rbind, .packages = c("clhs", "
 LHCtraining.list <- unique(as.character(LHCtraining$BGC))
 X3 <- X2 %>% filter(!(BGC %in% LHCtraining.list))
 X4 <- rbind(X3, LHCtraining)
-X2 <- X4
+X2 <- X4 %>% drop_na() %>% filter(!BGC == "") %>% droplevels()
 ```
 
 # Build model of BGCs
@@ -353,7 +353,7 @@ write.csv (BGCmodel$confusion.matrix, file= paste("./outputs/",fname,"_Confusion
 
 ####alternate model build
  fname <- "USA_26var"
-model = "_rf_8June2020_BC_Add"
+model = "_rf_12June2020_BC_Add"
 BGCmodel_rf <- randomForest(BGC ~ ., data = X2[,-c(1)], do.trace = 10,
                           ntree = 101,   importance = TRUE)#strata=BGC, sampsize= c(500),, probability = TRUE
 
@@ -373,7 +373,7 @@ X2$BGC.pred <- predict(BGCmodel_rf, data = X2[,-c(1:2)])
 
 X2.mis <- X2 %>% select(ID1, BGC, BGC.pred) %>% filter(BGC != BGC.pred) %>% left_join(X1_loc)
 
-write.csv(X2.mis, "./outputs/Confused_Points7_June2020.csv", row.names = FALSE)
+write.csv(X2.mis, "./outputs/Confused_Points_11_June2020.csv", row.names = FALSE)
 
 ```
 
@@ -407,7 +407,7 @@ write.csv(X2.mis, "./outputs/Confused_Points7_June2020.csv", row.names = FALSE)
 #load("./outputs/USA_Zone_RFModel_Dec4.Rdata")
 # bring in grid data with climate attributes
 
-Z1 <- fread("./inputs/grids/WA_8000m_HexPts_Normal_1961_1990MSY.csv", stringsAsFactors = FALSE,  data.table = FALSE)
+Z1 <- fread("./inputs/grids/MT_400m_HexPts_Normal_1961_1990MSY.csv", stringsAsFactors = FALSE,  data.table = FALSE)
 Z1_loc <-  Z1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
 
 Z1 <- addVars(Z1)
@@ -426,39 +426,49 @@ Z1.pred <- cbind(Z1_loc, grid.pred$predictions)
 Z1.pred$BGC <-  fct_explicit_na(Z1.pred$`grid.pred$predictions` , na_level = "(None)")
 #write.csv(grid.dat, "./outputs/Hexgrid800mPredictedtoSubZone_30vars.csv", row.names = FALSE)
 Z1.pred <- dplyr::select(Z1.pred, ID1, BGC, Latitude, Longitude,Elevation )#"Longitude","Latitude", "Elevation", "Zone")]
-write.csv(Z1.pred, "./outputs/Hexgrid800mPredictedtoSubZone_May5.csv", row.names = FALSE)
+Z1.pred$ID1 <- as.character(Z1.pred$ID1)
+#write.csv(Z1.pred, "./outputs/ID_400mPredictedtoSubZone_Jun7.csv", row.names = FALSE)
 ```
-# Attribute hex grid with Zone call
+# Attribute hex grid with subzone/variant call
 ```{r link to hex polygon layer}
+require(lwgeom)
 ##############link predicted Zones to Polygons and write shape file
-hexpoly <- st_read(dsn = "./inputs/hex_shapes", layer = "USA_bgc_hex_800m")
-hexZone <- left_join(hexpoly, Z1.pred, by = c("FID" = "ID1"))
-temp <- select(hexZone, BGC, geometry)
-temp2 <- st_zm(temp, drop=T, what='ZM')
-st_write(temp2, dsn = "outputs", layer = "USA_SubZoneMap_800m_31Mar2020_ungrouped", driver = "ESRI Shapefile", update = TRUE)
 
-# #####joined polygons have bad topology. INSTEAD DISSOLVE in QGIS.
-# temp2 <- temp
-# st_precision(temp2) <- 0.5 ###union polygons within zone
-# temp2$BGC <-  as.factor(temp2$BGC)
-# temp2$BGC <- forcats::fct_explicit_na(temp2$BGC,na_level = "(None)")
-# droplevels(temp2$BGC)
-# t2 <- temp2 %>%
-#   group_by(BGC) %>%
-#   summarise(geometry = sf::st_union(geometry)) %>%
-#   ungroup()
-# #mapView(t2)
-# t2 <- st_zm(t2, drop=T, what='ZM')
-# st_write(t2, dsn = "outputs", layer = "USA_rawSubZoneMap_800m_ranger_31Mar2020", driver = "ESRI Shapefile", update = TRUE)
+hexpoly <- st_read(dsn = "./inputs/hex_shapes/MT_bgc_hex400.gpkg")#, layer = "USA_bgc_hex_800m")
+hexpoly$hex_id <- as.character(hexpoly$hex_id)
+hexZone <- left_join(hexpoly, Z1.pred, by = c("hex_id" = "ID1"))# %>% st_transform(3005) %>% st_cast()
+temp <- hexZone %>% select(BGC, geom)
+temp2 <- st_zm(temp, drop=T, what='ZM') 
+##unremark for undissolved layer
+#st_write(temp2, dsn = "./outputs/MT_SubZoneMap_400m_undissolved_10June2020_3.gpkg", driver = "GPKG")
+
+###Dissolve 
+#hexZone <- st_read(dsn = "./outputs/WA_bgc_hex8000_ungrouped.gpkg")#, layer = "USA_bgc_hex_800m") ## need to read it back in to ensure all type Polygon is consistent
+temp3 <- hexZone
+temp3$BGC <- droplevels(temp3$BGC)
+temp3 <-  st_as_sf(temp3)# 
+st_precision(temp3) <- .5 
+temp3$BGC <- forcats::fct_explicit_na(temp3$BGC,na_level = "(None)")
+temp3 <- temp3[,c("BGC","Elevation","geom")]
+t2 <- aggregate(temp3[,-1], by = list(temp3$BGC), do_union = T, FUN = mean) %>% rename(BGC = Group.1)
+t2 <- st_zm(t2, drop=T, what='ZM') 
+#mapView(t2)
+CRS.102008 <- "+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m no_defs"
+CRS.102218 <- "+proj=aea +lat_1=43 +lat_2=48 +lat_0=34 +lon_0=-120 +x_0=600000 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+
+
+#t3 <- st_transform_proj(t3, CRS.102218)
+#st_is_valid(t3)
+#t4 <- st_make_valid(t3)## this seems to remove rather than fix problem areas
+ st_write(t2, dsn = "./outputs/MT_SubZoneMap_hex400_dissolved_11June2020.gpkg", driver = "GPKG")
 
 ```
 ## clean up isolated individual pixels
 This process is slow. IS probably better done in QGIS.
 In QGIS
-Take the multipolygon, separate into polygons (v fast), multipart to single parts, clip to state boundary, dissolve with v.dissolve, add geometric attributes to (v fast), select polygons <2 000 000 = 3 hexes in size (v fast), eliminate selected polygons  by longest neighbour.
+Open the export file which is a multipolygon and separate multipart to single parts, (v fast),  add geometric attributes to polygons(v fast), select small polygons by < X area,  select polygons <2 000 000 = 3 hexes in size (v fast), eliminate selected polygons by longest neighbour, re dissolve by BGC with SAGA.
 
-``` {r cleanup up crumbs}
-
+```{r clean crumbs}
 ###now cleanup and remove crumbs
 # t2 <- st_cast(t2, "MULTIPOLYGON") %>% st_cast("POLYGON")
 # t2 <- t2 %>%
@@ -509,7 +519,7 @@ Take the multipolygon, separate into polygons (v fast), multipart to single part
 #   summarise(geometry = sf::st_union(geometry)) %>%
 #   ungroup()
 # 
-# mapview(t2, zcol = "Zone")
+# mapview(t2, zcol = "BGC")
 # t2 <- st_zm(t2, drop=T, what='ZM')
 # st_write(t2, dsn = "outputs", layer = "DeCrumbed_SubZoneMap_800m_ranger30", driver = "ESRI Shapefile", update = TRUE)
 
