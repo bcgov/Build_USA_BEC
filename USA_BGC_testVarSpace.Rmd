@@ -1,0 +1,28 @@
+---
+title: "VariableSpaceTest_USABGC"
+author: "Will MacKenzie"
+date: "November 12, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Script to test the training point set variable space against full variable space. Check of extrapolation errors in building USA_BGC
+1. Import training point data
+2. create raster surface data set or downlaod from climateWNA
+
+```{r import training data}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
