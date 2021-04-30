@@ -429,6 +429,9 @@ countX <- X2_final %>% count(BGC)
 # Build model of BGCs
 The model reduced via RFE to 14 variables is approximately 84.3% accurate and 83% Gini. When all variables are used (44) the accuracy and Gini increase by approximately 1%.
 Stay with limited set
+**** This  build needs to be replaced with tidymodels version.
+**** We'll want to do a formal analysis - training dataset split with control for spatial autocorrelation. 
+**** We can apply some of the techniques I had Gen build in for the PEM process re testing point rebalancing to both find optimum downsampling and SMOTE combinations but also identify the BGCs that are not being predicted well.
 
 ```{r build ranger model training point size, cache = TRUE, echo=FALSE}
 
