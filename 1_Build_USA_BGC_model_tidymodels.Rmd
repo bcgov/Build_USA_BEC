@@ -7,12 +7,13 @@ output:
   code_folding: hide
   #theme: flatly
 ---
-# Script to create RF model from USA training points and predict + map US zones/ subzones (predicted within each zone)
-Import training data
-Reduce variable list with caret or PCA all variable
-Build machine learning model
-Test for missing variable space or map error for required additional training points
-Loop to build models by zone and then by subzone within zone to predict map
+### Script to create RF model from USA training points and predict + map US zones/ subzones (predicted within each zone)
+1. Import training data
+2. Reduce variable list with caret or PCA all variable
+3. Test machine learning model with analysis/assessment splits and CV
+4. Report errors rate
+5. Build final model
+6. Predict 
 Translates predictions to a grid point map
 Add predictions to hex polygon layer.
 Overlay additional plots over map to assign to USA_BGC units
@@ -21,10 +22,10 @@ Overlay additional plots over map to assign to USA_BGC units
 # STEP 1: Prepare dataset for analysis----clear workspace
 ```{r setup, include=FALSE, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE, cache=TRUE)
-require(rattle)
-require(rpart)
-require(rpart.plot)
-require(plyr)
+#require(rattle)
+#require(rpart)
+#require(rpart.plot)
+#require(plyr)
 require(reshape)
 require(reshape2)
 #require(VSURF)
@@ -36,9 +37,9 @@ require(foreach)
 require(doParallel)
 require(ggplot2)
 #require(functional)
-require(plot3D)
+#require(plot3D)
 require(dplyr)
-require(tcltk)
+#require(tcltk)
 require(caret)
 require(randomForest)
 require(ranger)
@@ -52,14 +53,14 @@ require(survey)
 require(scales)
 require(UBL)
 #require (mcl3)
-require(tidyr)
+#require(tidyr)
 require (tidyverse)
 require(rlang)
 require (Rcpp)
 require(sf)
 require (mapview)
 require(forcats)
-require(Boruta)
+#require(Boruta)
 require(purrrlyr)
 require(skimr)
 require(gbm)
@@ -70,6 +71,7 @@ require(smotefamily)
 require(smoothr)
 require(tictoc)
 require(tidymodels)
+tidymodels_prefer()
 #install.packages ("clhs")
 ```
 
@@ -101,14 +103,14 @@ X1 <- fread("./inputs/training_pts/US_TrainingPointsAll_27Dec2020_Normal_1961_19
 
 
 ##Add in border points from BC and Alberta from WNA 4k Grid data
-Y1 <- fread("./inputs/training_pts/WNA_4k_HexPts_BGC_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
-Y2 <- Y1  %>% filter(Latitude < 49.5) #%>% filter(BGC %in% c("CDFmm", "ICHdm", "IDFxx1", "CWHms1", "MSdm2"))
-#Y3 <- Y1 %>% filter(Latitude > 49) %>% filter(Latitude < 49.5)
-X1 <- rbind(X1,Y2) %>% select(-ID1) %>%  rowid_to_column("ID1")
-#X1 <- rbind(X2,Y3)
-
-X1_loc <- X1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
-X1 <- X1 %>% dplyr::select (ID1, BGC, everything()) %>% dplyr::select(-Latitude, -Longitude, -Elevation)
+# Y1 <- fread("./inputs/training_pts/WNA_4k_HexPts_BGC_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
+# Y2 <- Y1  %>% filter(Latitude < 49.5) #%>% filter(BGC %in% c("CDFmm", "ICHdm", "IDFxx1", "CWHms1", "MSdm2"))
+# #Y3 <- Y1 %>% filter(Latitude > 49) %>% filter(Latitude < 49.5)
+# X1 <- rbind(X1,Y2) %>% select(-ID1) %>%  rowid_to_column("ID1")
+# #X1 <- rbind(X2,Y3)
+# 
+# X1_loc <- X1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
+# X1 <- X1 %>% dplyr::select (ID1, BGC, everything()) %>% dplyr::select(-Latitude, -Longitude, -Elevation)
 
 # X2 <- fread("./cLHS/WNA_Training_22_VARS.csv", stringsAsFactors = FALSE, data.table = FALSE)
 # X3 <- left_join(X2, X1) %>% dplyr::select(ID1, BGC, Latitude, Longitude, Elevation)
@@ -316,6 +318,27 @@ featurePlot(x =  X1[, -c(1:2)],
 ```
 ## Reduce sample size of oversampled BGCs via cLHS
 *** This process can probably be replaced by tidymodels functions
+
+
+
+```{r raw training point summary, echo = FALSE, include = TRUE}
+# calculate summary of raw training data set
+X2_sum <- X2 %>%
+  dplyr::group_by(BGC) %>%
+  dplyr::summarise(freq = n()) %>%
+  dplyr::mutate(prop = round(freq/sum(freq),3))
+
+ggplot(X2_sum, aes(x= reorder(BGC, -prop), y = freq)) +
+  geom_bar(stat = "identity") + 
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
+```{r build and test model}
+
+
+```
+
 
 ```{r downsample over sampled units}
 count_tp <- X2  %>% dplyr::count(BGC) %>% filter(n>=2500) %>% select(BGC)
