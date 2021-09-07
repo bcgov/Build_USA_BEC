@@ -32,6 +32,13 @@ addVars <- function(dat){
     mutate_all(., list(~ifelse(. < 0, 0 , .))) %>%
     rowSums(na.rm = TRUE)
   
+  dat <- dat %>%  mutate(DD_delayed = (((DD_0_at+ DD_0_wt )*0.0238) - 1.8386)) %>% mutate_if(is.numeric, round, digits=1)
+  dat$DD_delayed <- ifelse(dat$DD_delayed <=0, 0, dat$DD_delayed )
+  
+  dat <- dat %>%  mutate(EMT_threshold = ifelse(EMT <=-40, 1,
+                                              ifelse(EMT > -40 & EMT <= -15, 2,
+                                                     ifelse(EMT > -15  & EMT <= 0, 3,4))))
+  
   # remove some redundant variables considered undesireable
   month <- c("01", "02", "03", "04", "05", "06","07", "08", "09", "10", "11", "12")
   dat <- dat  %>% dplyr::select(-ends_with(month)) %>% #removes all monthly variables

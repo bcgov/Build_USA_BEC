@@ -62,7 +62,7 @@ source("./_functions/AddVars.R")
 ### Use the best model from those above (Biological, nzv and corr removed, Scaled, Outliers Removed)
 ``` {r Load model}
 # load("./outputs/USAv12_tidymodel.Rdata")
-load("./outputs/USAv12_w_BCborder_tidymodel.Rdata")
+load("./outputs/USAv12_w_BCborder_2Sept21tidymodel.Rdata")
 model_vars <- BGCmodel$fit$fit$fit
 model_vars <- model_vars$variable.importance
 model_vars <- as.data.frame(model_vars) %>% tibble::rownames_to_column()
@@ -72,7 +72,7 @@ model_vars <- as.data.frame(model_vars) %>% tibble::rownames_to_column()
 ```{r select and predict state}
 #load("./outputs/USAv12_62nosmote_VAR_SubZone_ranger.Rdata")
 # bring in grid data with climate attributes
-region = "MT"
+region = "CO"
 Z1 <- fread(paste0("./inputs/grids/", region, "_400m_HexPts_Normal_1961_1990MSY.csv"), stringsAsFactors = FALSE,  data.table = FALSE)
 Z1_loc <-  Z1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
 Z1_cna <- Z1 %>% dplyr::select(ID1,ID2, Latitude, Longitude, Elevation)
@@ -86,7 +86,7 @@ Z1 <- addVars(Z1)
 #modelvars <- modelvars %>% filter(x !="BGC")
 grid.dat <- Z1 %>% dplyr::select(ID1,model_vars$rowname) #%>%  filter_all(all_vars(. > -9999))
 
-grid.dat$ID1 <- as.character(grid.dat$ID1 )
+grid.dat$ID1 <- as.integer(grid.dat$ID1 )
 ###Predict
 grid.pred <- predict(BGCmodel, grid.dat)
 
@@ -210,7 +210,7 @@ t3 <- temp2 %>%
 #
 #mapview(t2, zcol = "BGC")
 t3 <- st_zm(t3, drop=T, what='ZM')
-st_write(t3, dsn = paste0("./outputs/", region, "_BGC_20May2021_eliminated_BC.gpkg"), driver = "GPKG",delete_dsn = TRUE)
+st_write(t3, dsn = paste0("./outputs/", region, "_BGC_5Sept2021_eliminated_BC.gpkg"), driver = "GPKG",delete_dsn = TRUE)
 toc()
 ```
 

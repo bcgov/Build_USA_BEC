@@ -9,6 +9,7 @@
 # for test datasets the following are also generated: 
 # spat_pa, spat_fpa,
 
+
 library(yardstick)
 
 acc_metrix <- function(data){
@@ -20,13 +21,13 @@ acc_metrix <- function(data){
   fmean <- data %>% f_meas(BGC, .pred_class) # f means
   mcc <- data %>%  mcc(BGC, .pred_class)
   sens <- data %>%  sens(BGC, .pred_class)
-  spec <- data %>%  spec(BGC, .pred_class)
+  spec <- data %>%  yardstick::spec(BGC, .pred_class)
   acc <- data %>% accuracy(BGC, .pred_class)
   jind <- data %>% j_index(BGC, .pred_class) 
   ###some aspatial metrics
   #data <- test.pred
-  aspatial_pred <- data  %>% dplyr::select(.pred_class) %>% group_by(.pred_class) %>% mutate(pred.ratio = n()) %>%ungroup() %>% distinct()
-  aspatial_BGC <- data  %>% dplyr::select(BGC) %>% group_by(BGC) %>% mutate(targ.ratio = n())%>%ungroup() %>% distinct()    
+  aspatial_pred <- data  %>% dplyr::select(.pred_class) %>% group_by(.pred_class) %>% dplyr::mutate(pred.ratio = n()) %>% ungroup() %>% distinct()
+  aspatial_BGC <- data  %>% dplyr::select(BGC) %>% group_by(BGC) %>% dplyr::mutate(targ.ratio = n())%>% ungroup() %>% distinct()    
   aspatial_sum <- full_join(aspatial_BGC, aspatial_pred, by = c("BGC" = ".pred_class")) %>% mutate_if(is.integer, funs(replace_na(., 0))) %>% rowwise() %>% mutate(Min = min(targ.ratio, pred.ratio))
   .estimate <- colSums(aspatial_sum[,4])/colSums(aspatial_sum[,2])
   .metric= "aspatial_acc"
