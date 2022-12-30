@@ -62,7 +62,7 @@ source("./_functions/AddVars.R")
 ### Use the best model from those above (Biological, nzv and corr removed, Scaled, Outliers Removed)
 ``` {r Load model}
 # load("./outputs/USAv12_tidymodel.Rdata")
-load("./outputs/USAv12_w_BCborder_2Sept21tidymodel.Rdata")
+load("./outputs/USAv12_w_BCborder_5Apr2022tidymodel.Rdata")
 model_vars <- BGCmodel$fit$fit$fit
 model_vars <- model_vars$variable.importance
 model_vars <- as.data.frame(model_vars) %>% tibble::rownames_to_column()
@@ -75,8 +75,8 @@ model_vars <- as.data.frame(model_vars) %>% tibble::rownames_to_column()
 region = "CO"
 Z1 <- fread(paste0("./inputs/grids/", region, "_400m_HexPts_Normal_1961_1990MSY.csv"), stringsAsFactors = FALSE,  data.table = FALSE)
 Z1_loc <-  Z1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
-Z1_cna <- Z1 %>% dplyr::select(ID1,ID2, Latitude, Longitude, Elevation)
-fwrite(Z1_cna, paste0("./inputs/grids/", region, "_400m_HexPts.csv"))
+# Z1_cna <- Z1 %>% dplyr::select(ID1,ID2, Latitude, Longitude, Elevation)
+# fwrite(Z1_cna, paste0("./inputs/grids/", region, "_400m_HexPts.csv"))
 Z1 <- addVars(Z1)
 #grid.dat <- fread("./inputs/grids/USA_8000m_Grid_Climate_new_Normal_1961_1990MSY.csv", stringsAsFactors = FALSE,  data.table = FALSE)### add in the extra climate variables
 
@@ -139,7 +139,7 @@ t2 <- st_intersection(t2, wna_boundary)
 #t3 <- st_transform_proj(t3, CRS.102218)
 #st_is_valid(t3)
 #t4 <- st_make_valid(t3)## this seems to remove rather than fix problem areas
- st_write(t2, dsn = paste0("./outputs/", region, "_SubZoneMap_hex400_dissolved_19May2021_clipped_BC.gpkg"), driver = "GPKG", delete_dsn = TRUE)
+ st_write(t2, dsn = paste0("./outputs/", region, "_SubZoneMap_hex400_dissolved_5AprMay2022_clipped_BC.gpkg"), driver = "GPKG", delete_dsn = TRUE)
  toc() ##WA takes approx 200s
 
 ```
@@ -210,7 +210,7 @@ t3 <- temp2 %>%
 #
 #mapview(t2, zcol = "BGC")
 t3 <- st_zm(t3, drop=T, what='ZM')
-st_write(t3, dsn = paste0("./outputs/", region, "_BGC_5Sept2021_eliminated_BC.gpkg"), driver = "GPKG",delete_dsn = TRUE)
+st_write(t3, dsn = paste0("./outputs/", region, "_BGC_5Apr2022_eliminated_BC.gpkg"), driver = "GPKG",delete_dsn = TRUE)
 toc()
 ```
 
@@ -219,14 +219,26 @@ toc()
 ## smooth polygon boundaries
 tic()
 #t3_smooth <- smoothr::smooth(t3, method = "densify")
-t3_smooth <- smoothr::smooth(t3_smooth, method = "ksmooth", smoothness = 2)#)
+t3_smooth <- smoothr::smooth(t3, method = "ksmooth", smoothness = 2)#)
 #t3_smooth.spline <- smoothr::smooth(t3_smooth, method = "spline")
 # holes = .5
 # area_thresh <- units::set_units(holes, km^2)
 # p_dropped <- smoothr::fill_holes(t3_smooth, threshold = area_thresh)
 # t3_smooth <- p_dropped
 #st_write(t3_smooth, dsn = paste0("./outputs/", region, "_BGC_19May2021_smoothed_densify-smooth.gpkg"), driver = "GPKG",delete_dsn = TRUE)
-st_write(t3_smooth.spline, dsn = paste0("./outputs/", region, "_BGC_19May2021_smoothed.gpkg"), driver = "GPKG",delete_dsn = TRUE)
+st_write(t3_smooth, dsn = paste0("./outputs/", region, "_BGC_5Apr2022_smoothed.gpkg"), driver = "GPKG",delete_dsn = TRUE)
 toc()
 ```
+```{r simplify vector map}
+require(terra)
+require(rmapshaper)
+require(tictoc)
+BGC_map <- read_sf("D:/CommonTables/BGC_maps/WNA_BGC_v12_5Apr2022_new.gpkg")
+tic()
+BGC_map2 <-  rmapshaper::ms_simplify(BGC_map, keep = 0.005, method = 'vis', weighting = 0.7, explode = FALSE, sys = TRUE)
+toc()
+BGC_map2 <-  rmapshaper::ms_dissolve(BGC_map2, field = "BGC", sys = TRUE)
+st_write(BGC_map2, "D:/CommonTables/BGC_maps/WNA_BGC_v12_5Apr2022_new_simplified_dissolved_v1.gpkg", append = FALSE)
+```
+
 
