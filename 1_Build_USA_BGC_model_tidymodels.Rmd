@@ -86,13 +86,16 @@ X1 <- fread("./inputs/training_pts/US_TrainingPoints_2Sept2021_Normal_1961_1990M
 
 
 ##Add in border points from BC and Alberta from WNA 4k Grid data
-Y1 <- fread("E:/Sync/WNA_BEC/WNA_2k_HexPts_BGC_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
+Y1 <- fread("./inputs/training_pts/Border_TrainingPoints_2Sept2021_Normal_1961_1990MSY.csv",  stringsAsFactors = FALSE,data.table = FALSE)
+
+
 #Y2 <- Y1  %>% filter(Latitude < 49.5) #%>% filter(BGC %in% c("CDFmm", "ICHdm", "IDFxx1", "CWHms1", "MSdm2"))
-Y3 <- Y1 %>% filter(Latitude > 49.001) %>% filter(Latitude < 49.2)
-Y3.count <- Y3 %>% count(BGC) %>% filter(n>30)
-Y3 <- Y3[Y3$BGC %in% Y3.count$BGC,]
-#X1 <- rbind(X1,Y2) %>% select(-ID1) %>%  rowid_to_column("ID1")
-X1 <- rbind(X1,Y3)
+# Y3 <- Y1 %>% filter(Latitude > 49.001) %>% filter(Latitude < 49.2)
+# Y3.count <- Y3 %>% count(BGC) %>% filter(n>30)
+# Y3 <- Y3[Y3$BGC %in% Y3.count$BGC,]
+#   dplyr::select(1:5)
+# fwrite(Y3,"./inputs/training_pts/Border_TrainingPoints_2Sept2021.csv" )#X1 <- rbind(X1,Y2) %>% select(-ID1) %>%  rowid_to_column("ID1")
+X <- rbind(X1,Y1)
 
 # X1_loc <- X1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
 # X1 <- X1 %>% dplyr::select (ID1, BGC, everything()) %>% dplyr::select(-Latitude, -Longitude, -Elevation)
@@ -102,17 +105,17 @@ X1 <- rbind(X1,Y3)
 # write.csv(X3, "LHS_Training_Locations.csv")
 
 
-X1 <- addVars(X1)
+X2 <- addVars(X)
 #X1 <- X1 %>% dplyr::select(ID1, BGC, everything())
 ### 33 Bioclimate variable set from DataBasin version 7
-#X1 <- X1 %>% dplyr::select(ID1, Latitude, Longitude, BGC,  MWMT, MCMT, MSP, AHM, SHM,  DD5,  DD18, NFFD, bFFP, eFFP, 
-#         PAS, EMT, EXT, Eref, CMDMax, CMD.total,  Tave_wt, Tave_sm,  PPT_sm,
-#        FFP,MAT, TD, MAP, DD_18, DD_0, PPT_wt) 
+X1 <- X2 %>% dplyr::select(ID1, Latitude, Longitude, BGC,  MWMT, MCMT, MSP, AHM, SHM,  DD5,  DD18, NFFD, bFFP, eFFP, 
+        PAS, EMT, EXT, Eref, CMDMax, CMD.total,  Tave_wt, Tave_sm,  PPT_sm,
+        FFP, MAT, TD, MAP, DD_18, DD_0, PPT_wt) 
 
-X1 <- X1 %>% dplyr::select(ID1, BGC, Latitude, Longitude, MAT, MWMT, MCMT, TD, MAP, MSP, AHM, SHM, DD_0, DD5, DD_18, DD18, 
-                           NFFD, FFP, bFFP, eFFP, PAS ,EMT, EXT, Eref, CMD, MAR, RH, CMI, DD1040, 
-                           Tave_wt, Tave_sp, Tave_sm, Tave_at, PPT_wt, PPT_sp, PPT_sm, PPT_at,
-                           CMDMax, CMD.total)
+#X3 <- X2 %>% dplyr::select(ID1, BGC, Latitude, Longitude, MAT, MWMT, MCMT, TD, MAP, MSP, AHM, SHM, DD_0, DD5, DD_18, DD18, 
+#                           NFFD, FFP, bFFP, eFFP, PAS ,EMT, EXT, Eref, CMD, MAR, RH, CMI, DD1040, 
+#                           Tave_wt, Tave_sp, Tave_sm, Tave_at, PPT_wt, PPT_sp, PPT_sm, PPT_at,
+#                           CMDMax, CMD.total)
 # this set could be poorMAR, RH,
 # X1 <- X1 %>% dplyr::select(ID1, BGC, MWMT, DD5_at, DD5_sm, DD5_sp, Eref_sm, Eref_sp, PPT_sm, MSP, PPT_sp,
 #          CMD_sp, CMDMax,CMD.total,SHM, AHM, Tmax_sp, Tmax_sm, DD18, NFFD)
@@ -286,6 +289,8 @@ ggplot(X2_sum, aes(x= reorder(BGC, -prop), y = freq)) +
   geom_bar(stat = "identity") + 
   theme(axis.text.x = element_text(angle = 90))
 
+X2$BGC <- as.factor(X2$BGC)
+
 BGC_split <- initial_split(X2, prop = 3/4, strata = BGC)
 BGC_train <- training(BGC_split)
 BGC_test <- testing(BGC_split)
@@ -298,7 +303,7 @@ BGC_recipe <-
     recipe(BGC ~ ., data = BGC_train) %>%
     update_role(ID1, new_role = "id variable") %>% 
     update_role(Latitude, Longitude, new_role = "georef") %>% 
-    #step_corr(all_numeric()) %>%        # remove correlated covariates
+    #step_corr(all_numeric(0.9)) %>%        # remove correlated covariates
     #step_dummy(all_nominal(),-all_outcomes()) %>%   
     #step_zv(all_numeric()) %>%          # remove values with no variance
     prep()
@@ -326,7 +331,7 @@ BGCbalance_recipe <-  recipe(BGC ~ ., data =  BGC_train) %>%
     #step_dummy(all_nominal(),-all_outcomes()) %>%    
     # step_zv(all_numeric()) %>% # remove values with no variance
   step_downsample(BGC, under_ratio = 70) %>%   
-  step_smote(BGC, over_ratio = .07, neighbors = 5) %>% 
+  step_smote(BGC, over_ratio = .1, neighbors = 10) %>% 
     prep()
 BGC_train2 <- BGCbalance_recipe  %>% juice()
 BGC_train2$BGC <- as.factor(BGC_train2$BGC)
@@ -455,7 +460,7 @@ randf_spec <- rand_forest(mtry = 6, min_n = 2, trees = 201) %>%
 BGC_recipe <-  recipe(BGC ~ ., data =  BGC_final) %>%
     update_role(ID1, new_role = "id variable") %>% 
   step_downsample(BGC, under_ratio = 70) %>%   
-  step_smote(BGC, over_ratio = .07, neighbors = 5) %>%
+  step_smote(BGC, over_ratio = .1, neighbors = 5) %>%
  prep()
 
 
@@ -481,15 +486,15 @@ BGCmodel <- fit(
   BGC_workflow, 
   BGC_final)
 
-save(BGCmodel,file= "./outputs/USAv12_w_BCborder_2Sept21tidymodel.Rdata")
+save(BGCmodel,file= "./outputs/USAv12_w_BCborder_5Apr2022tidymodel.Rdata")
 #load("./outputs/USAv12_tidymodel.Rdata")
 
 ##report model
   require(vip)
-final_fit <- pull_workflow_fit(BGCmodel) # %>%pull(.predictions)
+final_fit <- extract_fit_parsnip(BGCmodel) # %>%pull(.predictions)
 final_fit
 oob  <- round(BGCmodel$fit$fit$fit$prediction.error, 3)
-pull_workflow_fit(BGCmodel) %>% vip(num_features = 26)
+extract_fit_parsnip(BGCmodel) %>% vip(num_features = 26)
 
 ```
 
