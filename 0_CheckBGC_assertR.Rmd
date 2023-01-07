@@ -1,0 +1,85 @@
+---
+title: "AssertR_BGC_Check"
+author: "William H MacKenzie"
+date: "02/12/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require (tools)
+require(data.table)
+require(spatstat)
+require(spatialEco)
+require(survey)
+require(scales)
+require(UBL)
+require(assertr)
+require(tidyr)
+require (tidyverse)
+require(rlang)
+require (Rcpp)
+require (readxl)
+require(stringr)
+#install.packages ("assertr")
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r update BGC codes}
+#Bring in all tables
+DB_share <- ("C:/Users/whmacken/Dropbox (WorkingFiles_Telus)/")
+## BGC lookup table
+BGC <- fread("D:/CommonTables/BECdb/All_BGCs_v11.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
+BGC <- BGC %>% rename("BGC" = "Map_Label")
+###Edatopic
+Edatope <- fread("D:/CommonTables/BECdb/Edatopic_v11_9.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
+Edatope <- Edatope %>% rename("BGC" = "MergedBGC")
+##SiteSeries
+SSeries <-fread("D:/CommonTables/BECdb/SSeries_v11.csv" ,  stringsAsFactors = FALSE,data.table = FALSE)
+##ESuit
+ESuit <- fread("D:/CommonTables/TreeSpp/TreeSpp_ESuit_v11_19_working_04Nov2019.csv", stringsAsFactors = FALSE, data.table = FALSE)
+##Training Points
+TP <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE)
+TP.names <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE)
+#TP <- TP %>% rename("Old_BGC" = "ZoneSubzone") 
+TP2 <- TP %>%  left_join(TP.names, by = "Old_BGC")
+write.csv(TP2, "Renamed_USA_TrainingPoints.csv", row.names = FALSE)
+
+#   dplyr::select("ID", "BGC", "LAT", "LON", "ELEV_m")
+# write.csv(X2, "USA_Training_renamed.csv", row.names = FALSE)
+#Site Series to use this updates all old BGC codes to new one using lookup table
+SSU <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE) ###SStoUse
+SSU.names <- fread((file.choose()), stringsAsFactors = FALSE, data.table = FALSE, header = TRUE)##USA BGC Names. csv
+SSU<- SSU %>% rename("Old_BGC_NoSpace" = "Zone") 
+SSU2 <- SSU %>%  left_join(SSU.names, by = "Old_BGC_NoSpace")
+SSU3 <- SSU2 %>% separate(SS_NoSpace, c("oldbgc", "siteseries"), sep = "/")
+SSU4 <- SSU3 %>%  mutate(newBGC = case_when (!(is.na(BGC_NoSpace)) ~ BGC_NoSpace,
+                                             is.na(BGC_NoSpace) ~Old_BGC_NoSpace)) %>% 
+  mutate(SS_NoSpace = paste0(newBGC, "/", siteseries)) %>% 
+  select (Source, newBGC, SS_NoSpace, Edatopic, Special, Codes, `New Zone`, `New SS`,NewBGCSS, Action, 'Based on:', Date_Updated ) %>% 
+  rename(BGC = newBGC)
+write.csv(SSU4, "Edatopic_v11_19.csv", row.names = FALSE)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r update codes, echo=FALSE}
+BGC.list <- as.list (BGC$BGC)
+##test
+Edatope %>%
+  assert(in_set(unique(BGC$BGC)), BGC) %>% error_report(unique(value))
+# X1$ZoneSubzone <- str_replace_all(X1$ZoneSubzone, fixed(" "), "")
+# X2 <- X1 %>%rename("Old_BGC" = "ZoneSubzone") %>%
+#    left_join(X1name, by = "Old_BGC") %>%
+#   dplyr::select("ID", "BGC", "LAT", "LON", "ELEV_m")
+# write.csv(X2, "USA_Training_renamed.csv", row.names = FALSE)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
