@@ -3,10 +3,7 @@
 .RData
 .Ruserdata
 /inputs/
-<<<<<<< HEAD
 /outputs/
-=======
-/outputs/
-/gis/
 /old/
->>>>>>> 05a45fc36c1a501ea8446df7e1b5306a1c66694c
+/gis/
+
