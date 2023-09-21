@@ -36,9 +36,9 @@ require(spatstat)
 require(spatialEco)
 require(survey)
 require(scales)
-require (tidyverse)
+require(tidyverse)
 require(rlang)
-require (Rcpp)
+require(Rcpp)
 require(forcats)
 require(purrrlyr)
 require(skimr)
@@ -216,18 +216,18 @@ toc()
 
 
 ```{r smooth}
-## smooth polygon boundaries
-tic()
-#t3_smooth <- smoothr::smooth(t3, method = "densify")
-t3_smooth <- smoothr::smooth(t3, method = "ksmooth", smoothness = 2)#)
-#t3_smooth.spline <- smoothr::smooth(t3_smooth, method = "spline")
-# holes = .5
-# area_thresh <- units::set_units(holes, km^2)
-# p_dropped <- smoothr::fill_holes(t3_smooth, threshold = area_thresh)
-# t3_smooth <- p_dropped
-#st_write(t3_smooth, dsn = paste0("./outputs/", region, "_BGC_19May2021_smoothed_densify-smooth.gpkg"), driver = "GPKG",delete_dsn = TRUE)
-st_write(t3_smooth, dsn = paste0("./outputs/", region, "_BGC_5Apr2022_smoothed.gpkg"), driver = "GPKG",delete_dsn = TRUE)
-toc()
+# ## smooth polygon boundaries
+# tic()
+# #t3_smooth <- smoothr::smooth(t3, method = "densify")
+# t3_smooth <- smoothr::smooth(t3, method = "ksmooth", smoothness = 2)#)
+# #t3_smooth.spline <- smoothr::smooth(t3_smooth, method = "spline")
+# # holes = .5
+# # area_thresh <- units::set_units(holes, km^2)
+# # p_dropped <- smoothr::fill_holes(t3_smooth, threshold = area_thresh)
+# # t3_smooth <- p_dropped
+# #st_write(t3_smooth, dsn = paste0("./outputs/", region, "_BGC_19May2021_smoothed_densify-smooth.gpkg"), driver = "GPKG",delete_dsn = TRUE)
+# st_write(t3_smooth, dsn = paste0("./outputs/", region, "_BGC_5Apr2022_smoothed.gpkg"), driver = "GPKG",delete_dsn = TRUE)
+# toc()
 ```
 ```{r simplify vector map}
 require(terra)
