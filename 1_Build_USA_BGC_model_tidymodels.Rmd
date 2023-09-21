@@ -151,7 +151,7 @@ X1 <- X1 %>% filter(!BGC %in% count_tp)
 #                              "ESSFxcp_CO"=  "IMAun_CO" , "ESSFwmp_MT"="IMAun_MT" , "ESSFxkp_UT"= "IMAun_UT" , "ESSFxkp_MT"= "IMAun_MT" , 
 #                              "ESSFdmp_ID"="IMAun_ID" ,"ESSFdkp_MT"=  "IMAun_MT" ,"ESSFxcp_WA" = "IMAun_WA" ,"ESSFmwp_WA" = "IMAun_WA" ,
 #                            "ESSFxwp_OR" = "IMAun_OR" )
-X1 <- X1 %>%  na_if(-9999.0) %>% drop_na()
+X1 <- X1 %>% mutate(across(where(is.numeric), ~na_if(.,-9999.0))) %>% drop_na()
 
  count_tp <- X1 %>% dplyr::count(BGC)
 
