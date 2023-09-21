@@ -1,0 +1,52 @@
+---
+title: "CompareClimateNA_versions"
+author: "Will MacKenzie"
+date: '2022-04-06'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+require(data.table)
+require(DataExplorer)
+require(ggplot2)
+```
+```{r import two versions and compare, cache=TRUE}
+d <- fread("./inputs/training_pts/US_TrainingPoints_7_20_Normal_1961_1990S.csv")
+t <- fread("./inputs/training_pts/US_TrainingPoints_7_22_Normal_1961_1990S.csv")
+df <- bind_rows(d,t) %>% 
+  group_by(ID1, BGC) %>%
+  summarise(across(everything(), list(diff))) %>% 
+  data.frame()
+
+```
+
+```{r output graphics, echo = FALSE,fig.width = 14, fig.height=50}
+## Reduce data size for demo purpose
+df2 <- df %>% dplyr::select(BGC, Tmin_sp_1, PAS_wt_1, CMD_sm_1, PPT_sp_1, DD5_sp_1, NFFD_sp_1) %>% mutate(BGC = factor(BGC))
+
+## Call dataexplorer boxplot function
+plot_boxplot(df2, by = "BGC")
+
+
+ggplot(df2, aes(x=reorder(BGC,Tmin_sp_1) , y=Tmin_sp_1)) + 
+  geom_boxplot()+
+   coord_flip()
+
+
+
+
+# 
+# 
+# config <- configure_report(
+#   add_plot_str = FALSE,
+#   add_plot_qq = FALSE,
+#   add_plot_prcomp = FALSE,
+#   add_plot_boxplot = TRUE,
+#   add_plot_scatterplot = FALSE,
+#   global_ggtheme = quote(theme_minimal(base_size = 8))
+# )
+# create_report(df2, y="BGC", config = config)
+```
+
