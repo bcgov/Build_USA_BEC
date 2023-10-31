@@ -229,6 +229,7 @@ t3_smooth <- smoothr::smooth(t3, method = "ksmooth", smoothness = 2)#)
 st_write(t3_smooth, dsn = paste0("./outputs/", region, "_BGC_5Apr2022_smoothed.gpkg"), driver = "GPKG",delete_dsn = TRUE)
 toc()
 ```
+
 ```{r simplify vector map}
 require(terra)
 require(rmapshaper)
