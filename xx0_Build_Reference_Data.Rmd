@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 
 #remotes::install_github("bcgov/climr")
-require(climRdev)
+require(climr)
 require(terra)
 
 source("./_functions/AddVars.R")
@@ -21,7 +21,7 @@ source("./_functions/acc_metrix.R")
 
 
 ```{r Add downscaled climate variables to each point}
-coords <- fread("./inputs/training_pts/US_TrainingPoints_13Nov2023.csv",  stringsAsFactors = FALSE,data.table = FALSE) %>% filter(!BGC == "NA") %>% dplyr::rename(long = LON, lat = LAT, elev = ELEV_m, ID = ID1) %>% select(long,lat,elev, BGC, ID) %>% filter(!is.na(lat))
+coords <- fread("./inputs/training_pts/US_TrainingPoints_07Dec2023.csv",  stringsAsFactors = FALSE,data.table = FALSE) %>% filter(!BGC == "NA") %>% dplyr::rename(long = LON, lat = LAT, elev = ELEV_m, ID = ID1) %>% select(long,lat,elev, BGC, ID) %>% filter(!is.na(lat))
 setcolorder(coords, c("long","lat","elev","BGC", "ID"))
 thebb <- climRdev::get_bb(coords)
 coords <- as.data.frame(coords) %>% tidyr::drop_na()# 
@@ -42,6 +42,6 @@ training <- left_join(coords,X2)
 training <- training %>% dplyr::select(-PERIOD, ID, lat, long, BGC,MWMT, MCMT, MSP, AHM, SHM,  DD5,  DD18, NFFD, bFFP, eFFP, 
         PAS, EMT, EXT, Eref, CMDMax, CMD.total,  Tave_wt, Tave_sm,  PPT_sm,
         FFP, MAT, TD, MAP, DD_0, PPT_wt) 
-fwrite(training, "./inputs/training_pts/USA_training_13Nov2023_1961_90.csv")
+fwrite(training, "./inputs/training_pts/USA_training_07Dec2023_1961_90.csv")
 ```
 
