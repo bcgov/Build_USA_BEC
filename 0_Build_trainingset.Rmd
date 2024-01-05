@@ -1,0 +1,268 @@
+---
+title: "Random Forest Model of Biogeoclimatic Units for Western North America"
+author: "William H MacKenzie & Kiri Daust"
+date: "22/03/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+require (smotefamily)
+require(data.table)
+library(randtoolbox)
+library(clhs)
+library(ggplot2)
+require(sf)
+require(caret)
+require(ranger)
+require(climr)
+require(terra)
+require(tictoc)
+require(recipeselectors)
+require(tidymodels)
+source("../Build_USA_BEC/_functions/AddVars.R")
+source("../Build_USA_BEC/_functions/removeOutlier.R")
+source("../Build_USA_BEC/_functions/acc_metrix.R")
+# cloud_dir <- "F:/OneDrive - Government of BC/CCISSv12/latest_CCISS_tool_files/"
+
+```
+# General process
+Build a grid of points for WNA and attribute with data from ClimateBC for BC and ClimateNA for rest. A 2km grid seems to provide enough training points for most BGCs. Large non-vegetation land areas are excluded (lakes and glaciers primarily)
+There are areas where BGC mapping represents local effects represented by small polygons and these are removed (2km2) or are coast transition areas that are poorly mapped and climte modelled (inland polygons of CWH)
+We tested various variable sets - more work could be done here. First only include variables where an ecologically important control could be defined. Variables are removed that are highly correlated in both space and time. Preliminary runs in the modern climate change period (1991-2019) were assessed. Some additional variables that  were removed at this point as the priority effect could not be controlled. Specifically winter temperatures, which strongly differentiate between BGCs in historic models also rise most markedly through time. As there is no way to prioritize growing season variables, the increase in winter temperatures in the modern period then predict vast changes in the SBS which seem unwarranted. Threshold controls of winter temperatures might be more relevant.
+Univariate outliers (IQR *1.5) within each BGC are flagged and  training points with any outliers are removed.
+All variables are centered and scaled to harmonize the data dispersion which can effect selection in the model.
+To 
+
+
+Points from a 4km hex grid of western north america are generated in R and submitted to ClimateNA to extract annual and seasonal variables for the historic normal period (1961-90) and an ensemble future climate scenario (rcp45 2040-2070). These data sets are combined. Several additional climate variables are generated including several monthly climate sums for precipitation and growing degree days. All other monthly variables are removed. A winter rechange moisture deficit was calculated and summed with the climatic moisture deficit to account for regions that begin the growing season in soil moisture deficit.
+
+
+```{r download for training points}
+
+coords <- fread("./inputs/training_pts/US_TrainingPoints_07Dec2023.csv",  stringsAsFactors = FALSE,data.table = FALSE) %>% dplyr::filter(!BGC == "NA") %>% dplyr::rename(long = LON, lat = LAT, elev = ELEV_m, id = ID1) %>% dplyr::select(long,lat,elev, id, BGC) %>% dplyr::filter(!is.na(lat))
+setcolorder(coords, c("long","lat","elev", "id", "BGC"))
+
+rad_exclusion = 1000 ##  minimum meters between points
+require(Spbsampling)
+
+
+# require(spsurvey)
+# coords <- coords[!is.na("elev"),]
+# coords_sf <- st_as_sf(coords, coords = c("long","lat"), crs = 4326)
+# #coords_sf$elev <- NULL
+# coords_sf <- st_transform(coords_sf, 3005)
+# coords2 <- grts(coords_sf, n_base = 50, mindis = 1)# %>% as.data.frame
+
+
+#
+# bgcs <- st_read("D:/CommonTables/BGC_Maps/WNA_BGC_v12_5Apr2022.gpkg")
+# 
+# coords_bgc <- st_join(coords_sf, bgcs)
+# coords_bgc <- data.table(coords_bgc[,c("id","BGC")])
+# coords_bgc[,geometry := NULL]
+# #coords_bgc <- coords_bgc[!is.na(BGC),]
+# # 
+# #coords <- fread("WNA_2km_grid_WHM.csv")
+# 
+# coords <- as.data.frame(coords)# %>% dplyr::rename(long = 1, lat = 2)
+# setcolorder(coords, c("long","lat","elev","id"))
+# coords.bgc <- coords %>% dplyr::select(id, BGC) %>% dplyr::rename(ID = id)
+## based on vs_final below
+tic()
+clim_vars <- climr_downscale(coords, which_normal = "auto", vars = climr::list_variables(), return_normal = TRUE, cache = TRUE)
+toc()
+setDT(clim_vars)
+clim_vars[,PERIOD := NULL]
+#clim_vars[,ID := NULL]
+clim_vars <- clim_vars %>% dplyr::select(ID, BGC,everything())# %>% dplyr::select(-contains(remove))
+saveRDS(clim_vars, "./inputs/training_pts/USA_training_data_3Jan2023.rds")
+# library(caret)
+#   correlationMatrix <- cor(clim_vars2[,!"BGC"])
+#   highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.7, verbose = TRUE, names = TRUE) ## review for removal of highly correlated vars
+#    highlyCorrelated
+
+```
+
+```{r download for map grid}
+region = "OR"
+coords <- fread(paste0("./inputs/grids/", region, "_400m_HexPts.csv"), stringsAsFactors = FALSE,  data.table = FALSE) %>% dplyr::rename(long = Longitude, lat = Latitude, elev = Elevation, id = ID1) %>% dplyr::select(long,lat,elev, id) %>% dplyr::filter(!is.na(lat)) %>% distinct(id, .keep_all = TRUE) %>% as.data.frame
+setcolorder(coords, c("long","lat","elev", "id"))
+fwrite(coords, paste0("./inputs/grids/", region, "_400m_HexPts_new.csv"))
+coords <- fread(paste0("./inputs/grids/", region, "_400m_HexPts_new.csv"), stringsAsFactors = FALSE,  data.table = FALSE)
+#coords <- coords[30000:31000,]
+tic()
+clim_vars <- climr_downscale(coords, which_normal = "NA", vars = climr::list_variables(), return_normal = TRUE, cache = TRUE)
+toc()
+setDT(clim_vars)
+clim_vars[,PERIOD := NULL]
+#clim_vars[,ID := NULL]
+clim_vars <- clim_vars %>% dplyr::select(ID, ID2,everything())
+fwrite(clim_vars, paste0("./inputs/grids/", region, "_400m_HexPts_Normal_1961_1990MSY.csv"))
+# %>% dplyr::select(-contains(remove))
+#saveRDS(clim_vars, "./inputs/training_pts/USA_training_data_3Jan2023.rds")
+```
+
+
+
+
+```{r thin data to limit spatial autocorrelation}
+## turn X2 into a spatial object and convert to a projected georef (3005?)
+rad_exclusion = 1000 ##  minimum meters between points
+require(spThin)
+## code used in PEM cLHS sampling as example
+clhs_sampled <- st_as_sf(coords_sf) #%>%
+        mutate(final_obj_continuous = clhs_slice$final_obj_continuous) %>%
+        mutate(slice_num = i)
+
+      for(j in 1:nrow(clhs_sampled)){ # Filter the close together samples from the cLHS run
+       # j = 1
+        if(!is.na(clhs_sampled[j, ])){
+          distances <- data.frame(distance = st_distance(clhs_sampled, clhs_sampled[j, ])) %>%
+            rownames_to_column() %>%
+            mutate_all(as.numeric) %>%
+            dplyr::filter(distance > rad_exclusion | distance == 0)
+          clhs_sampled <- clhs_sampled[distances$rowname, ]
+        }
+      }
+      clhs_sampled_buff <- st_buffer(clhs_sampled, dist = rad_exclusion) # Extract and buffer the cLHS points
+      lays <- mask(lays, clhs_sampled_buff, inverse = TRUE) # Mask the sampleable area
+
+      sample_points <- bind_rows(sample_points, clhs_sampled )
+
+```
+##remove correlated variables
+
+<!-- ```{r create variable sets} -->
+<!-- vs_final <- c("DD5", "DD_delayed", -->
+<!--           "PPT_MJ", "PPT_JAS",  -->
+<!--          "CMD.total",  "CMDMax", -->
+<!--          "SHM", "AHM",  -->
+<!--             "NFFD",  -->
+<!--           "PAS")#"CMI", -->
+<!-- ``` -->
+
+
+<!-- ```{r reduce variables} -->
+<!-- clim_vars2 <- addVars(clim_vars) -->
+<!-- X_train <- clim_vars2[,c("BGC",vs_final), with = F] -->
+
+<!-- BGC_counts <- X_train[,.(Num = .N), by = .(BGC)] -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- remove <- c("01","02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "RH", "CMD_wt") -->
+<!-- clim_vars2 <- clim_vars %>% dplyr::select(BGC,everything()) %>% dplyr::select(-contains(remove)) -->
+<!-- clim_vars2 <- na.omit(clim_vars2) ##lots of points in the ocean -->
+<!-- fwrite(clim_vars2, "./inputs/training_pts/US_TrainingPoints_1961_90_07Dec2023.csv") -->
+<!-- trDat_centre <- clim_vars2 # %>% dplyr::select(-BGC) -->
+<!-- corr_recipe <-  recipe(BGC ~ ., data = trDat_centre) -->
+<!-- corr_filter <- corr_recipe %>% -->
+<!--   step_corr(all_numeric_predictors(), threshold = .9) -->
+<!--  all.var <- trDat_centre %>%  dplyr::select(-BGC) %>% colnames %>% data.frame -->
+<!-- # -->
+<!-- filter_obj <- prep(corr_filter, training = trDat_centre) -->
+<!-- # -->
+<!--  reduced.var <- juice(filter_obj) %>% dplyr::select(-BGC) %>% colnames -->
+<!--  reduced.var2 <- reduced.var %>% data.frame -->
+<!--  #fwrite(reduced.var2, file.path (out_dir, "rfe_variables.csv")) -->
+<!-- ``` -->
+
+<!-- ## need to apply the addvars  -->
+
+<!-- Create different model variable sets -->
+<!-- v1=all -->
+<!-- v2 = no months -->
+<!-- v3 = Biological Variables -->
+<!-- vs5 = 16var -->
+<!-- vs8 = 35 var -->
+<!-- vs9 = reduced 35 for biologial variable reduction to 19 -->
+<!-- vs10+ = testing effects and final set -->
+
+<!-- ```{r create variable sets} -->
+<!-- vs_final <- c("DD5", "DD_delayed", -->
+<!--           "PPT_MJ", "PPT_JAS",  -->
+<!--          "CMD.total", "CMI", "CMDMax", -->
+<!--          "SHM", "AHM",  -->
+<!--             "NFFD",  -->
+<!--           "PAS") -->
+
+<!-- ``` -->
+
+
+<!-- ```{r reduce variables} -->
+<!-- addVars(clim_vars) -->
+<!-- X_train <- clim_vars[,c("BGC",vs_final), with = F] -->
+
+<!-- BGC_counts <- X_train[,.(Num = .N), by = .(BGC)] -->
+<!-- ``` -->
+
+
+<!-- The preprocessing function from the caret package was used to identify variables with near-zero variance or correlation >0.90 in the combined data set. These variables were removed leaving a final variable set of 20 variables. -->
+<!-- ```{r reduce variables, warning=FALSE}  -->
+<!-- library(caret) -->
+<!--   correlationMatrix <- cor(X_train[,!"BGC"]) -->
+<!--   highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.7, verbose = TRUE, names = TRUE) ## review for removal of highly correlated vars -->
+<!--    highlyCorrelated -->
+
+<!-- ``` -->
+
+<!-- ```{r remove poor BGCs} -->
+<!-- badbgcs <- c("BWBSvk", "ICHmc1a", "MHun", "SBSun", "ESSFun", "SWBvk","MSdm3","ESSFdc3", "IDFdxx_WY", "MSabS", "FGff", "JPWmk_WY" )#, "ESSFab""CWHws2", "CWHwm", "CWHms1" ,  -->
+<!-- X_sub <- X_train[!BGC %in% badbgcs,] -->
+
+<!-- ``` -->
+
+
+<!-- The new rebalanced training set is 310 668 points. This training set is submitted to ranger to generate a final climate model of BGCs for western north america. -->
+
+<!-- ```{r final training sets} -->
+<!-- library(foreach) -->
+<!-- X_sub <- as.data.frame(X_sub) -->
+<!-- X2 <- removeOutlier(X_sub, alpha = .025, numIDvars = 1) ###set alpha for removal of outliers (2.5% = 3SD) -->
+<!-- ``` -->
+
+<!-- ````{r remove very small units} -->
+<!-- XAll <- as.data.table(X2) -->
+<!-- BGC_Nums <- XAll[,.(Num = .N), by = BGC] -->
+<!-- BGC_good <- XAll[!BGC %in% BGC_Nums[Num < 30, BGC],]##remove BGCs with low numbers of points -->
+<!-- fwrite(BGC_good, "Clean_traning_data.csv") -->
+<!-- BGC_good <- fread("Clean_traning_data.csv") -->
+<!-- ````` -->
+
+<!-- ```{r balance} -->
+<!-- library(tidymodels) -->
+<!-- require(themis) -->
+
+<!-- BGCbalance_recipe <-  recipe(BGC ~ ., data =  BGC_good) %>% -->
+<!--     step_downsample(BGC, under_ratio = 90) %>% -->
+<!--     step_smote(BGC, over_ratio = .1, neighbors = 8) %>%  -->
+<!--     prep() -->
+<!-- X_balanced <- BGCbalance_recipe  %>% juice() -->
+<!-- setDT(X_balanced) -->
+<!-- BGC_Nums <- X_balanced[,.(Num = .N), by = BGC] -->
+<!-- ``` -->
+
+<!-- ```{r train model} -->
+<!-- library(ranger) -->
+<!-- BGC_good[,BGC := as.factor(BGC)] -->
+
+<!-- BGCmodel <- ranger( -->
+<!--   BGC ~ ., -->
+<!--   data = BGC_good, -->
+<!--   num.trees = 501, -->
+<!--   splitrule =  "extratrees", -->
+<!--   mtry = 4, -->
+<!--   min.node.size = 2, -->
+<!--   importance = "permutation", -->
+<!--   write.forest = TRUE, -->
+<!--   classification = TRUE, -->
+<!--   probability = FALSE -->
+<!-- ) -->
+<!-- save(BGCmodel, file = "BGCModel_Extratrees_FullData.Rdata") -->
+
+<!-- ``` -->

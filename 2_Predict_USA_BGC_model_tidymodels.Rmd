@@ -62,42 +62,42 @@ source("./_functions/AddVars.R")
 ### Use the best model from those above (Biological, nzv and corr removed, Scaled, Outliers Removed)
 ``` {r Load model}
 # load("./outputs/USAv12_tidymodel.Rdata")
-load("./outputs/USAv12_w_BCborder_5Apr2022tidymodel.Rdata")
+load("./outputs/USAv13_4JanApr2024tidymodel_nobalancing.Rdata")
 model_vars <- BGCmodel$fit$fit$fit
 model_vars <- model_vars$variable.importance
-model_vars <- as.data.frame(model_vars) %>% tibble::rownames_to_column()
+model_vars <- as.data.frame(model_vars)  %>% tibble::rownames_to_column()# %>% filter(!rowname == "ID")
 
 ```
 
 ```{r select and predict state}
 #load("./outputs/USAv12_62nosmote_VAR_SubZone_ranger.Rdata")
 # bring in grid data with climate attributes
-region = "CO"
-Z1 <- fread(paste0("./inputs/grids/", region, "_400m_HexPts_Normal_1961_1990MSY.csv"), stringsAsFactors = FALSE,  data.table = FALSE)
-Z1_loc <-  Z1 %>% dplyr::select(ID1, Latitude, Longitude, Elevation)
+region = "ID"
+Z1 <- fread(paste0("./inputs/grids/", region, "_400m_HexPts_Normal_1961_1990MSY.csv"), stringsAsFactors = FALSE,  data.table = FALSE) #%>% dplyr::filter(!is.na())
+Z1_loc <-  Z1 %>% dplyr::select(ID, ID2)
 # Z1_cna <- Z1 %>% dplyr::select(ID1,ID2, Latitude, Longitude, Elevation)
 # fwrite(Z1_cna, paste0("./inputs/grids/", region, "_400m_HexPts.csv"))
 Z1 <- addVars(Z1)
 #grid.dat <- fread("./inputs/grids/USA_8000m_Grid_Climate_new_Normal_1961_1990MSY.csv", stringsAsFactors = FALSE,  data.table = FALSE)### add in the extra climate variables
-
+#Z1 <- Z1 %>% rename(ID1 = ID)
 
 
 #modelvars <- read.csv("./inputs/Final22Var_WNABGCv11.csv")##use model variables from buildrf work
 #modelvars <- modelvars %>% filter(x !="BGC")
-grid.dat <- Z1 %>% dplyr::select(ID1,model_vars$rowname) #%>%  filter_all(all_vars(. > -9999))
+grid.dat <- Z1 %>% dplyr::select(ID,model_vars$rowname) %>%  filter_all(all_vars(. > -9999)) #%>% filter(!is)
 
-grid.dat$ID1 <- as.integer(grid.dat$ID1 )
+grid.dat$ID <- as.integer(grid.dat$ID )
 ###Predict
 grid.pred <- predict(BGCmodel, grid.dat)
 
-Z1_loc <- Z1_loc[Z1_loc$ID1 %in% grid.dat$ID1,]
+Z1_loc <- Z1_loc[Z1_loc$ID %in% grid.dat$ID,]
 Z1.pred <- cbind(Z1_loc, grid.pred$.pred_class) %>% rename(BGC.pred = 'grid.pred$.pred_class')
 #Z1.
 #grid.dat$Zone <- as.factor(grid.dat$Zone)
 Z1.pred$BGC <-  fct_explicit_na(Z1.pred$BGC.pred , na_level = "(None)")
 #write.csv(grid.dat, "./outputs/Hexgrid800mPredictedtoSubZone_30vars.csv", row.names = FALSE)
-Z1.pred <- dplyr::select(Z1.pred, ID1, BGC, Latitude, Longitude,Elevation )#"Longitude","Latitude", "Elevation", "Zone")]
-Z1.pred$ID1 <- as.character(Z1.pred$ID1)
+Z1.pred <- Z1.pred %>%  dplyr::select(ID, BGC)#"Longitude","Latitude", "Elevation", "Zone")]
+Z1.pred$ID <- as.character(Z1.pred$ID)
 #write.csv(Z1.pred, "./outputs/ID_400mPredictedtoSubZone_Jun7.csv", row.names = FALSE)
 ```
 
@@ -108,7 +108,7 @@ require(lwgeom)
 tic()
 hexpoly <- st_read(dsn = paste0("./inputs/hex_shapes/", region, "_bgc_hex400.gpkg"))#, layer = "USA_bgc_hex_800m")
 hexpoly$hex_id <- as.character(hexpoly$hex_id)
-hexZone <- left_join(hexpoly, Z1.pred, by = c("hex_id" = "ID1"))# %>% st_transform(3005) %>% st_cast()
+hexZone <- left_join(hexpoly, Z1.pred, by = c("hex_id" = "ID"))# %>% st_transform(3005) %>% st_cast()
 temp <- hexZone %>% select(BGC, geom)
 temp2 <- st_zm(temp, drop=T, what='ZM') 
 ##unremark for undissolved layer
@@ -121,7 +121,7 @@ temp3$BGC <- droplevels(temp3$BGC)
 temp3 <-  st_as_sf(temp3)# 
 st_precision(temp3) <- .5 
 temp3$BGC <- forcats::fct_explicit_na(temp3$BGC,na_level = "(None)")
-temp3 <- temp3[,c("BGC","Elevation","geom")]
+temp3 <- temp3[,c("BGC","geom")]#,"Elevation"
 t2 <- aggregate(temp3[,-1], by = list(temp3$BGC), do_union = T, FUN = mean) %>% rename(BGC = Group.1)
 
 wna_boundary = st_read("D:/CommonTables/BC_AB_US_Shp/WNA_State_Boundaries.gpkg") %>% st_as_sf() %>% filter(State %in% region) %>%
@@ -139,7 +139,7 @@ t2 <- st_intersection(t2, wna_boundary)
 #t3 <- st_transform_proj(t3, CRS.102218)
 #st_is_valid(t3)
 #t4 <- st_make_valid(t3)## this seems to remove rather than fix problem areas
- st_write(t2, dsn = paste0("./outputs/", region, "_SubZoneMap_hex400_dissolved_5AprMay2022_clipped_BC.gpkg"), driver = "GPKG", delete_dsn = TRUE)
+# st_write(t2, dsn = paste0("./outputs/", region, "_SubZoneMap_hex400_dissolved_4Jan2024.gpkg"), driver = "GPKG", delete_dsn = TRUE)
  toc() ##WA takes approx 200s
 
 ```
@@ -154,7 +154,7 @@ Next Step to Polygonize raster map and eliminate small polygons
 ```{r clean crumbs}
 ## Read in map if not already loaded from previous chunk
 #region <- "WA"
-#t2 <- st_read(dsn = paste0("./outputs/", region, "_SubZoneMap_hex400_dissolved_7Jan2021_clipped.gpkg"))
+#t2 <- st_read(dsn = paste0("./outputs/", region, "_SubZoneMap_hex400_dissolved_4Jan2024.gpkg"))
 
 tic()
 t2a <- st_cast(t2, "MULTIPOLYGON") %>% st_cast("POLYGON")
@@ -210,7 +210,7 @@ t3 <- temp2 %>%
 #
 #mapview(t2, zcol = "BGC")
 t3 <- st_zm(t3, drop=T, what='ZM')
-st_write(t3, dsn = paste0("./outputs/", region, "_BGC_5Apr2022_eliminated_BC.gpkg"), driver = "GPKG",delete_dsn = TRUE)
+st_write(t3, dsn = paste0("./outputs/", region, "_BGC_4Jan2024_eliminated.gpkg"), driver = "GPKG",delete_dsn = TRUE)
 toc()
 ```
 

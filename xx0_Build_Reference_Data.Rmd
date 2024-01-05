@@ -1,0 +1,47 @@
+---
+title: "Add climr data to reference set"
+author: "Will MacKenzie"
+date: "2023-11-13"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#remotes::install_github("bcgov/climr")
+require(climr)
+require(terra)
+
+source("./_functions/AddVars.R")
+source("./_functions/removeOutlier.R")
+source("./_functions/acc_metrix.R")
+```
+
+## Add Climr data to points and generate additional variables
+
+
+```{r Add downscaled climate variables to each point}
+coords <- fread("./inputs/training_pts/US_TrainingPoints_07Dec2023.csv",  stringsAsFactors = FALSE,data.table = FALSE) %>% filter(!BGC == "NA") %>% dplyr::rename(long = LON, lat = LAT, elev = ELEV_m, ID = ID1) %>% select(long,lat,elev, BGC, ID) %>% filter(!is.na(lat))
+setcolorder(coords, c("long","lat","elev","BGC", "ID"))
+thebb <- climRdev::get_bb(coords)
+coords <- as.data.frame(coords) %>% tidyr::drop_na()# 
+ ##get bounding box based on input points
+dbCon <- data_connect() 
+normal <- climRdev::normal_input_postgis(dbCon = dbCon, normal = "normal_na", bbox = thebb, cache = TRUE) ##connect to database
+vars_needed <- c("DD5","DD_0_at","DD_0_wt","PPT05","PPT06","PPT07","PPT08","PPT09","CMD","PPT_at","PPT_wt","CMD07","SHM", "AHM", "NFFD", "PAS", "CMI", "EMT", "Tmax07", "MWMT", "DD18", "bFFP", 'MCMT', 'MSP',  'eFFP',  'EXT', 'Eref', 'Tave_wt', 'Tave_sm',  'PPT_sm', 'FFP', 'MAT', 'TD', 'MAP', 'DD_0')
+
+training <- downscale(
+  coords,
+  normal,
+  return_normal = TRUE,
+  vars = vars_needed)
+
+X2 <- addVars(training)
+training <- left_join(coords,X2)
+
+training <- training %>% dplyr::select(-PERIOD, ID, lat, long, BGC,MWMT, MCMT, MSP, AHM, SHM,  DD5,  DD18, NFFD, bFFP, eFFP, 
+        PAS, EMT, EXT, Eref, CMDMax, CMD.total,  Tave_wt, Tave_sm,  PPT_sm,
+        FFP, MAT, TD, MAP, DD_0, PPT_wt) 
+fwrite(training, "./inputs/training_pts/USA_training_07Dec2023_1961_90.csv")
+```
+
