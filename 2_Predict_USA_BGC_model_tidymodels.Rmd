@@ -72,9 +72,9 @@ model_vars <- as.data.frame(model_vars)  %>% tibble::rownames_to_column()# %>% f
 ```{r select and predict state}
 #load("./outputs/USAv12_62nosmote_VAR_SubZone_ranger.Rdata")
 # bring in grid data with climate attributes
-region = "ID"
+region = "OR"
 Z1 <- fread(paste0("./inputs/grids/", region, "_400m_HexPts_Normal_1961_1990MSY.csv"), stringsAsFactors = FALSE,  data.table = FALSE) #%>% dplyr::filter(!is.na())
-Z1_loc <-  Z1 %>% dplyr::select(ID, ID2)
+Z1_loc <-  Z1 %>% dplyr::select(ID)
 # Z1_cna <- Z1 %>% dplyr::select(ID1,ID2, Latitude, Longitude, Elevation)
 # fwrite(Z1_cna, paste0("./inputs/grids/", region, "_400m_HexPts.csv"))
 Z1 <- addVars(Z1)
@@ -90,15 +90,15 @@ grid.dat$ID <- as.integer(grid.dat$ID )
 ###Predict
 grid.pred <- predict(BGCmodel, grid.dat)
 
-Z1_loc <- Z1_loc[Z1_loc$ID %in% grid.dat$ID,]
-Z1.pred <- cbind(Z1_loc, grid.pred$.pred_class) %>% rename(BGC.pred = 'grid.pred$.pred_class')
+Z1_loc <- Z1_loc %>% filter(Z1_loc$ID %in% grid.dat$ID)
+Z1.pred <- cbind(Z1_loc, grid.pred$.pred_class) %>% dplyr::rename(BGC.pred = 'grid.pred$.pred_class')
 #Z1.
 #grid.dat$Zone <- as.factor(grid.dat$Zone)
 Z1.pred$BGC <-  fct_explicit_na(Z1.pred$BGC.pred , na_level = "(None)")
 #write.csv(grid.dat, "./outputs/Hexgrid800mPredictedtoSubZone_30vars.csv", row.names = FALSE)
 Z1.pred <- Z1.pred %>%  dplyr::select(ID, BGC)#"Longitude","Latitude", "Elevation", "Zone")]
 Z1.pred$ID <- as.character(Z1.pred$ID)
-#write.csv(Z1.pred, "./outputs/ID_400mPredictedtoSubZone_Jun7.csv", row.names = FALSE)
+  #write.csv(Z1.pred, "./outputs/ID_400mPredictedtoSubZone_Jun7.csv", row.names = FALSE)
 ```
 
 # Attribute hex grid with subzone/variant call
