@@ -72,7 +72,7 @@ model_vars <- as.data.frame(model_vars)  %>% tibble::rownames_to_column()# %>% f
 ```{r select and predict state}
 #load("./outputs/USAv12_62nosmote_VAR_SubZone_ranger.Rdata")
 # bring in grid data with climate attributes
-region = "OR"
+region = "NV"
 Z1 <- fread(paste0("./inputs/grids/", region, "_400m_HexPts_Normal_1961_1990MSY.csv"), stringsAsFactors = FALSE,  data.table = FALSE) #%>% dplyr::filter(!is.na())
 Z1_loc <-  Z1 %>% dplyr::select(ID)
 # Z1_cna <- Z1 %>% dplyr::select(ID1,ID2, Latitude, Longitude, Elevation)

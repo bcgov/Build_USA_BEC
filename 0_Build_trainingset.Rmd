@@ -88,7 +88,7 @@ saveRDS(clim_vars, "./inputs/training_pts/USA_training_data_3Jan2023.rds")
 ```
 
 ```{r download for map grid}
-region = "OR"
+region = "CO"
 coords <- fread(paste0("./inputs/grids/", region, "_400m_HexPts.csv"), stringsAsFactors = FALSE,  data.table = FALSE) %>% dplyr::rename(long = Longitude, lat = Latitude, elev = Elevation, id = ID1) %>% dplyr::select(long,lat,elev, id) %>% dplyr::filter(!is.na(lat)) %>% distinct(id, .keep_all = TRUE) %>% as.data.frame
 setcolorder(coords, c("long","lat","elev", "id"))
 # fwrite(coords, paste0("./inputs/grids/", region, "_400m_HexPts_new.csv"))
@@ -100,7 +100,7 @@ toc()
 setDT(clim_vars)
 clim_vars[,PERIOD := NULL]
 #clim_vars[,ID := NULL]
-clim_vars <- clim_vars %>% dplyr::select(ID, ID2,everything())
+clim_vars <- clim_vars %>% dplyr::select(ID, everything())
 fwrite(clim_vars, paste0("./inputs/grids/", region, "_400m_HexPts_Normal_1961_1990MSY.csv"))
 # %>% dplyr::select(-contains(remove))
 #saveRDS(clim_vars, "./inputs/training_pts/USA_training_data_3Jan2023.rds")
