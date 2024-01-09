@@ -46,7 +46,7 @@ coords <- fread("./inputs/training_pts/US_TrainingPoints_07Dec2023.csv",  string
 setcolorder(coords, c("long","lat","elev", "id", "BGC"))
 
 rad_exclusion = 1000 ##  minimum meters between points
-require(Spbsampling)
+#require(Spbsampling)
 
 
 # require(spsurvey)
