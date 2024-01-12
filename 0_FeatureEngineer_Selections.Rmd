@@ -1,0 +1,148 @@
+---
+title: "Covariates"
+author: "WH MacKenzie"
+date: "2024-01-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(reshape)
+require(reshape2)
+require(parallel)
+require(foreach)
+require(doParallel)
+require(ggplot2)
+require(dplyr)
+require(ranger)
+require (tools)
+require(data.table)
+require(scales)
+require(tidyverse)
+require(rlang)
+require(Rcpp)
+require(forcats)
+require(purrrlyr)
+require(skimr)
+require(smotefamily)
+require(tictoc)
+require(tidymodels)
+require(spatialsample)
+require(themis)
+require(DataExplorer)
+
+addVars <- function(dat){ ##this function modifies everything inplace, so no need for return value
+  dat[,`:=`(PPT_MJ = PPT05+PPT06,
+            PPT_JAS = PPT07+PPT08+PPT09,
+            PPT.dormant = PPT_at+PPT_wt)]
+  dat[,`:=`(CMD.def = 500-PPT.dormant)]
+  dat[CMD.def < 0, CMD.def := 0]
+  dat[,`:=`(CMDMax = CMD07,
+            CMD.total = CMD.def + CMD)]
+  dat[,`:=`(CMD.grow = CMD05+CMD06+CMD07+CMD08+CMD09,
+            DD5.grow = DD5_05+DD5_06+DD5_07+DD5_08+DD5_09,
+            #DDgood = DD5 - DD18,
+            #DDnew = (DD5_05+DD5_06+DD5_07+DD5_08)-(DD18_05+DD18_06+DD18_07+DD18_08),
+            TmaxJuly = Tmax07)]
+}
+
+
+logVars <- function(dat,
+                    elements = c("AHM", "DD",  "NFFD", "PAS", "PPT", "SHM", "MAP"),#"Eref", "FFP", "CMI"
+                    base = exp(2),
+                    add.fields = FALSE,
+                    zero_adjust = FALSE) {
+  
+  dat <- copy(dat)
+  dat <- setDT(dat)
+  
+  # Fields to operate on (generally these should be ratio (zero-limited) variable)
+  logFields <- grep(paste(elements, collapse = "|"), names(dat), value = TRUE)
+  dat.log <- dat[, .SD, .SDcols = logFields]
+  
+  # If specified by the user, give zero values a positive value that is one order of magnitude less than the minimum positive value
+  if (zero_adjust) {
+    dat.log[, lapply(.SD, function(x) {
+      x[x <= 0] <- base^(log(min(x[x > 0], na.rm = TRUE), base = base) - 1)
+      return(x)
+    })]
+  }
+  
+  # Perform log transformation
+  dat.log <- dat.log[, lapply(.SD, function(x) log(x, base = base))]
+  
+  # Add 
+  if(add.fields){
+    setnames(dat.log, logFields, paste0(logFields, "_log"))
+    dat <- cbind(dat, dat.log)
+  } else {
+    dat[, (logFields) := Map(x =.SD, xname = logFields, f = function(x, xname) {
+      x <- dat.log[[xname]]
+      return(x)
+    }), .SDcols = logFields]
+  }
+  return(dat)
+}
+
+
+removeOutlier <- function(dat, alpha, vars){
+  out <- foreach(curr = unique(as.character(dat$BGC)), .combine = rbind) %do% {
+    temp <- dat[dat$BGC == curr,]
+    md <- tryCatch(mahalanobis(temp[, vars],
+                               center = colMeans(temp[, vars]),
+                               cov = cov(temp[, vars])), error = function(e) e)
+    if (!inherits(md,"error")){
+      ctf <- qchisq(1-alpha, df = ncol(temp)-1)
+      outl <- which(md > ctf)
+      message("Removing", length(outl), "outliers from", curr, "; ")
+      if (length(outl) > 0){
+        temp <- temp[-outl,]
+      }
+    }
+    temp
+  }
+  return(out)
+}
+
+
+```
+
+## R Markdown
+
+```{r read in variables}
+X1 <- readRDS("./inputs/training_pts/USA_training_data_9Jan2023_colin.rds") %>% select(-ID, -BGC)
+X1 <- addVars(X1)
+months <- c("01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12")
+X1 <- X1 %>% select(-ends_with(months), -starts_with("RH"))
+##remove nzvar
+X1.new <- logVars(X1, add.fields = FALSE)
+
+require(caret)
+# NZV <- nearZeroVar(X1.new, saveMetrics = TRUE)
+# NZV[NZV[,"zeroVar"] > 0, ] 
+# remove <- NZV[NZV[,"zeroVar"] + NZV[,"nzv"] > 0, ]
+# X1.new <- X1.new %>% select(-row.names(remove))
+
+########Remove near zero variance and highly correlated variables
+  X1_no_nzv_pca <- preProcess(X1.new, method = c( "nzv")) # DROP variables with near zero variance
+X1.new <- dplyr::select(X1.new, -c(X1_no_nzv_pca$method$remove))
+
+# # # calculate correlation matrix of variables
+correlationMatrix <- cor(X1.new)
+# # # summarize the correlation matrix
+# # #print(correlationMatrix)
+# # # find attributes that are highly corrected (ideally >0.75)
+highlyCorrelated <- findCorrelation(correlationMatrix, cutoff=0.90, verbose = TRUE, names = TRUE) ## review for removal of highly correlated vars
+X1.reduced <- X1.new %>% dplyr::select(-c(highlyCorrelated))
+
+
+
+#DataExplorer::create_report(X1)
+plot_histogram(X1.reduced)
+plot_correlation(na.omit(X1.reduced), maxcat = 5L)
+vars.list <- colnames(X1.reduced)
+#remove = c("RH", all monthly except, )
+
+
+```
+
